@@ -1,7 +1,7 @@
 <!DOCTYPE html>
-<html lang="en">
-<head>
-<meta charset="UTF-8">
+<!-- saved from url=(0053)file:///C:/Users/Ahmed%20Hamdy/Downloads/index_1.html -->
+<html lang="en"><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Logisty Hub</title>
 <style>
@@ -179,7 +179,7 @@
 <header>
   <div class="brand">
     <div class="mark">L</div>
-    <div><h1>Logisty Hub</h1><p>Smart dispatch &middot; last-mile routing + live status</p></div>
+    <div><h1>Logisty Hub</h1><p>Smart dispatch · last-mile routing + live status</p></div>
   </div>
   <div class="tabs">
     <button class="tab on" data-tab="plan" id="tabPlan">Plan routes</button>
@@ -222,9 +222,21 @@
       </section>
 
       <section class="card">
-        <h2>Vehicles <span class="count" id="vehCount">0</span></h2>
+        <h2>Vehicles <span class="count" id="vehCount">3</span></h2>
         <div class="body tight">
-          <div id="vehList"></div>
+          <div id="vehList"><div class="veh"><span class="dot" style="background:#2563EB"></span>
+      <span class="vn">Van A</span>
+      <span class="vc">300kg · 18 stops</span>
+      
+      <button class="btn sm danger rm" title="Remove" style="margin-left:auto">✕</button></div><div class="veh"><span class="dot" style="background:#E8A317"></span>
+      <span class="vn">Van B</span>
+      <span class="vc">300kg · 18 stops</span>
+      
+      <button class="btn sm danger rm" title="Remove" style="margin-left:auto">✕</button></div><div class="veh"><span class="dot" style="background:#178A50"></span>
+      <span class="vn">Van C</span>
+      <span class="vc">300kg · 18 stops</span>
+      
+      <button class="btn sm danger rm" title="Remove" style="margin-left:auto">✕</button></div></div>
           <div class="row c3" style="margin-top:10px">
             <input id="nvName" placeholder="Van D">
             <input id="nvKg" class="num" placeholder="kg" title="Weight capacity (kg)">
@@ -242,7 +254,7 @@
             <div><label class="fld" for="setService">Stop service (min)</label><input id="setService" class="num" value="6"></div>
           </div>
           <label style="display:flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;cursor:pointer">
-            <input type="checkbox" id="setReturn" checked style="width:auto"> Vehicles return to depot
+            <input type="checkbox" id="setReturn" checked="" style="width:auto"> Vehicles return to depot
           </label>
         </div>
       </section>
@@ -252,7 +264,7 @@
         <div class="body">
           <div class="row"><input id="sCust" placeholder="Customer name" dir="auto"></div>
           <div class="row c2" style="margin-top:8px">
-            <select id="sZone"></select>
+            <select id="sZone"><option>Nasr City</option><option>Heliopolis</option><option>Maadi</option><option>New Cairo</option><option>Zamalek</option><option>Dokki</option><option>Mohandessin</option><option>Giza</option><option>6th of October</option><option>Sheikh Zayed</option><option>Shubra</option><option>Helwan</option><option>Downtown</option><option>Garden City</option><option>Mokattam</option><option>Obour</option><option>Rehab</option><option>Madinaty</option></select>
             <input id="sPkg" class="num" placeholder="Packages" value="1">
           </div>
           <div class="row c2" style="margin-top:8px">
@@ -272,11 +284,8 @@
     <div class="col">
       <section class="card">
         <h2>Route map <span class="count" id="mapCount">0 stops</span></h2>
-        <div class="mapwrap" id="mapWrap">
-          <div class="map-empty" id="mapEmpty"><div>
-            <div class="big">No stops yet</div>
-            Add stops on the left, or load the Cairo sample, then press <b>Build routes</b>.</div></div>
-        </div>
+        <div class="mapwrap" id="mapWrap"><div class="map-empty"><div><div class="big">No stops yet</div>
+      Add stops on the left, or load the Cairo sample, then press <b>Build routes</b>.</div></div></div>
         <div class="legend" id="legend" style="display:none"></div>
       </section>
 
@@ -354,7 +363,9 @@
       <div id="impFileName" class="hint" style="text-align:center"></div>
       <details style="margin-top:12px">
         <summary style="cursor:pointer;font-size:12px;color:var(--muted)">or paste CSV text instead</summary>
-        <textarea id="impText" dir="auto" style="margin-top:8px" placeholder="order_id,customer,zone,weight_kg,packages,cod_egp,priority&#10;R2001,Mona Adel,Maadi,12,1,450,normal&#10;R2002,Karim Saad,Heliopolis,30,2,0,urgent"></textarea>
+        <textarea id="impText" dir="auto" style="margin-top:8px" placeholder="order_id,customer,zone,weight_kg,packages,cod_egp,priority
+R2001,Mona Adel,Maadi,12,1,450,normal
+R2002,Karim Saad,Heliopolis,30,2,0,urgent"></textarea>
         <button class="btn sm" id="impDo" style="margin-top:8px">Import pasted text</button>
       </details>
       <div id="impMsg" class="hint"></div>
@@ -1082,5 +1093,6 @@ el("impDo").onclick=()=>{const res=parseCSV(el("impText").value);
 
 fillZoneSelect(); render();
 </script>
-</body>
-</html>
+
+
+</body></html>
