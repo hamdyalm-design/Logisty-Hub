@@ -910,9 +910,35 @@ function importFile(file){
       let wb;
       if(isCSV){ wb=XLSX.read(e.target.result,{type:"string"}); }
       else { wb=XLSX.read(new Uint8Array(e.target.result),{type:"array"}); }
-      const ws=wb.Sheets[wb.SheetNames[0]];
-      const rows=XLSX.utils.sheet_to_json(ws,{defval:""});
-      if(!rows.length){ el("impMsg").innerHTML=`<span style="color:var(--danger)">That sheet looks empty.</span>`; return; }
+      // Pick the best sheet: some AWB exports have a printable cover sheet first
+      // and the real table on another sheet (e.g. "DATA"). Scan every sheet and
+      // choose the one that actually has recognisable headers + the most rows.
+      let rows=[], best=-1;
+      for(const nm of wb.SheetNames){
+        for(const hdrRow of [0,1,2,3]){          // header may not be on line 1
+          let cand=[];
+          try{ cand=XLSX.utils.sheet_to_json(wb.Sheets[nm],{defval:"",range:hdrRow}); }catch(_){ continue; }
+          if(!cand.length) continue;
+          const keys=Object.keys(cand[0]).map(k=>String(k).toLowerCase());
+          const known=keys.filter(k=>
+            k.includes("shipment #")||k.includes("order #")||k.includes("destination area")||
+            k.includes("destination governorate")||k.includes("amount to collect")||k.includes("customer name")||
+            k.includes("courier code")||k.includes("total qty")||
+            k==="customer"||k==="zone"||k==="area"||k==="order_id"||k==="orderid"||
+            k==="cod_egp"||k==="cod"||k==="lat"||k==="lng"||k==="weight_kg"||k==="packages"
+          ).length;
+          const score=known*1000 + cand.length;   // header match dominates, rows break ties
+          if(known>=2 && score>best){ best=score; rows=cand; }
+        }
+      }
+      // nothing recognisable: fall back to the first non-empty sheet as before
+      if(!rows.length){
+        for(const nm of wb.SheetNames){
+          const cand=XLSX.utils.sheet_to_json(wb.Sheets[nm],{defval:""});
+          if(cand.length){ rows=cand; break; }
+        }
+      }
+      if(!rows.length){ el("impMsg").innerHTML=`<span style="color:var(--danger)">That file has no readable rows.</span>`; return; }
       const res=ingestRows(rows);
       if(!res.rows.length){ el("impMsg").innerHTML=`<span style="color:var(--danger)">No rows could be read.</span>`; return; }
       state.shipments=state.shipments.concat(res.rows); state.planned=false; render();
