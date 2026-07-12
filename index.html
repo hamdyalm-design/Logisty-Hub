@@ -62,7 +62,10 @@
   .row{display:grid; gap:8px} .row.c2{grid-template-columns:1fr 1fr} .row.c3{grid-template-columns:1fr 1fr 1fr} .row+.row{margin-top:8px}
   .hint{font-size:11px; color:var(--muted); margin:6px 0 0}
 
-  .veh{display:flex; align-items:center; gap:9px; padding:8px; border:1px solid var(--line); border-radius:8px; background:var(--surface-2)}
+  .veh{display:flex; flex-direction:column; gap:7px; padding:8px; border:1px solid var(--line); border-radius:8px; background:var(--surface-2)}
+  .veh .vtop{display:flex; align-items:center; gap:9px}
+  .veh .vcrew{display:grid; grid-template-columns:1fr 1fr; gap:6px}
+  .veh .vcrew input{font-size:11.5px; padding:4px 6px; background:#fff}
   .veh+.veh{margin-top:8px}
   .dot{width:12px; height:12px; border-radius:50%; flex:none; box-shadow:0 0 0 2px #fff inset}
   .veh .vn{font-weight:600; font-size:13px} .veh .vc{font-size:11px; color:var(--muted); font-family:var(--mono)} .veh .rm{margin-left:auto}
@@ -78,7 +81,8 @@
   .route{border:1px solid var(--line); border-radius:var(--r); overflow:hidden; background:var(--surface)}
   .route+.route{margin-top:12px}
   .route .rh{display:flex; align-items:center; gap:10px; padding:11px 14px; color:#fff}
-  .route .rh .rname{font-weight:700; font-size:14px}
+  .route .rh .rname{font-weight:700; font-size:14px; display:flex; flex-direction:column; line-height:1.25}
+  .route .rh .crew{font-weight:600; font-size:10.5px; opacity:.95; letter-spacing:.01em}
   .route .rh .rtag{margin-left:auto; font-size:11px; opacity:.95; font-family:var(--mono)}
   .route .rh .btn{padding:4px 10px; font-size:12px}
   .metrics{display:grid; grid-template-columns:repeat(6,1fr); border-bottom:1px solid var(--line)}
@@ -99,12 +103,21 @@
   .pill{font-size:10px; padding:1px 7px; border-radius:20px; font-weight:600; letter-spacing:.02em}
   .pill.u{background:var(--danger-soft); color:var(--danger)}
   .reassign,.stsel{font-size:11px; padding:3px 5px; width:auto; min-width:104px}
+  td.awb{font-family:var(--mono); font-size:11.5px; color:var(--ink-2); white-space:nowrap}
+  td.ord{white-space:nowrap}
+  .ordbtn{padding:2px 7px; font-size:12px; line-height:1.1; min-width:26px}
+  .ordbtn[disabled]{opacity:.3; cursor:default}
+  .manual-tag{font-size:10px; font-weight:700; background:rgba(255,255,255,.9); color:#241400;
+    padding:2px 8px; border-radius:20px; letter-spacing:.03em; white-space:nowrap}
 
   /* status badge */
   .sb{display:inline-flex; align-items:center; gap:5px; font-size:11px; font-weight:600; padding:2px 8px; border-radius:20px; white-space:nowrap}
   .sb::before{content:""; width:7px; height:7px; border-radius:50%; background:currentColor}
   .sb.pending{color:#475569; background:#EEF2F7} .sb.out{color:var(--accent-ink); background:var(--accent-soft)}
-  .sb.delivered{color:#0B5C36; background:var(--ok-soft)} .sb.failed{color:#8E1B2B; background:var(--danger-soft)}
+  .sb.delivered,.sb.done{color:#0B5C36; background:var(--ok-soft)} .sb.failed,.sb.exception{color:#8E1B2B; background:var(--danger-soft)}
+  .sb.backlog{color:#475569; background:#EEF2F7} .sb.transit{color:var(--accent-ink); background:var(--accent-soft)}
+  .sb.deferred{color:#5B21B6; background:#EDE9FE}
+  .tcard .stsel{font-size:11px; padding:3px 5px; border:1px solid var(--line); border-radius:6px}
 
   /* KPI strip */
   .kpis{display:grid; grid-template-columns:repeat(4,1fr); gap:12px}
@@ -117,9 +130,13 @@
   .kpi small{font-size:11px; color:var(--muted); font-family:var(--mono)}
 
   /* status board */
-  .board{display:grid; grid-template-columns:repeat(4,1fr); gap:12px}
-  @media (max-width:980px){ .board{grid-template-columns:repeat(2,1fr)} }
-  @media (max-width:560px){ .board{grid-template-columns:1fr} }
+  /* 12 status columns — scroll sideways so each stays readable */
+  .board{display:flex; gap:12px; overflow-x:auto; padding-bottom:10px; scroll-snap-type:x proximity}
+  .board::-webkit-scrollbar{height:10px}
+  .board::-webkit-scrollbar-thumb{background:#C7D0DA; border-radius:6px}
+  .board::-webkit-scrollbar-track{background:var(--surface-2); border-radius:6px}
+  .board .lane{flex:0 0 250px; scroll-snap-align:start}
+  .board .empty{flex:1}
   .lane{background:var(--surface-2); border:1px solid var(--line); border-radius:var(--r); display:flex; flex-direction:column; min-height:120px}
   .lane>h3{margin:0; font-size:11px; text-transform:uppercase; letter-spacing:.08em; padding:10px 12px; display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--line)}
   .lane>h3 .c{margin-left:auto; font-family:var(--mono); font-size:12px}
@@ -145,7 +162,11 @@
   .tl li{position:relative; padding:0 0 16px 22px; border-left:2px solid var(--line)}
   .tl li:last-child{border-left-color:transparent}
   .tl li::before{content:""; position:absolute; left:-7px; top:2px; width:12px; height:12px; border-radius:50%; background:#fff; border:2px solid var(--accent)}
-  .tl li.pending::before{border-color:var(--pending)} .tl li.out::before{border-color:var(--out)} .tl li.delivered::before{border-color:var(--delivered)} .tl li.failed::before{border-color:var(--failed)}
+  .tl li.pending::before,.tl li.ready::before,.tl li.scheduled::before,.tl li.pickup::before{border-color:var(--pending)}
+  .tl li.out::before,.tl li.transfer::before{border-color:var(--out)}
+  .tl li.nextday::before,.tl li.reschedule::before{border-color:#7C3AED}
+  .tl li.delivered::before{border-color:var(--delivered)}
+  .tl li.notdelivered::before,.tl li.returned::before,.tl li.rollbackwh::before{border-color:var(--failed)}
   .tl .ts{font-family:var(--mono); font-size:11px; color:var(--muted)}
   .tl .st{font-weight:600; font-size:13px; text-transform:capitalize}
   .tl .rs{font-size:12px; color:var(--ink-2)}
@@ -238,9 +259,13 @@
       
       <button class="btn sm danger rm" title="Remove" style="margin-left:auto">✕</button></div></div>
           <div class="row c3" style="margin-top:10px">
-            <input id="nvName" placeholder="Van D">
+            <input id="nvName" placeholder="Vehicle no. / plate" title="Vehicle number or plate">
             <input id="nvKg" class="num" placeholder="kg" title="Weight capacity (kg)">
             <input id="nvStops" class="num" placeholder="stops" title="Max stops">
+          </div>
+          <div class="row c2" style="margin-top:8px">
+            <input id="nvDriver" placeholder="Driver name" dir="auto" title="اسم السواق">
+            <input id="nvRep" placeholder="Courier / rep name" dir="auto" title="اسم المندوب">
           </div>
           <button class="btn sm" id="btnAddVeh" style="margin-top:8px;width:100%">+ Add vehicle</button>
         </div>
@@ -403,9 +428,37 @@ const ZONES = {
   "Obour":[30.2280,31.4640], "Rehab":[30.0590,31.4910], "Madinaty":[30.1010,31.6360]
 };
 const PALETTE = ["#2563EB","#E8A317","#178A50","#D7263D","#7C3AED","#0E7490","#DB2777","#B45309","#4338CA","#65A30D"];
-const STATUSES = ["pending","out","delivered","failed"];
-const STATUS_LABEL = {pending:"Pending", out:"Out for delivery", delivered:"Delivered", failed:"Failed"};
-const STATUS_COLOR = {pending:"var(--pending)", out:"var(--out)", delivered:"var(--delivered)", failed:"var(--failed)"};
+/* ---- Status model: 12 real operational statuses, grouped into board lanes ---- */
+const STATUS_DEF = {
+  pending:      {label:"Pending",                      lane:"backlog",   color:"#94A3B8"},
+  ready:        {label:"Ready to Schedule",            lane:"backlog",   color:"#7C8FA6"},
+  scheduled:    {label:"Shipment Scheduled",           lane:"backlog",   color:"#0E7490"},
+  pickup:       {label:"Pickup Request",               lane:"backlog",   color:"#4338CA"},
+  out:          {label:"Out for Delivery",             lane:"transit",   color:"#E8A317"},
+  transfer:     {label:"Transfer Request",             lane:"transit",   color:"#B45309"},
+  nextday:      {label:"Customer Request Next Day",    lane:"deferred",  color:"#DB2777"},
+  reschedule:   {label:"Rollback to Reschedule",       lane:"deferred",  color:"#7C3AED"},
+  delivered:    {label:"Delivered",                    lane:"done",      color:"#178A50"},
+  notdelivered: {label:"Shipment Not Delivered",       lane:"exception", color:"#D7263D"},
+  returned:     {label:"Returned",                     lane:"exception", color:"#8E1B2B"},
+  rollbackwh:   {label:"Rollback to WH",               lane:"exception", color:"#64748B"},
+};
+const STATUSES = Object.keys(STATUS_DEF);
+const STATUS_LABEL = Object.fromEntries(STATUSES.map(k=>[k, STATUS_DEF[k].label]));
+const STATUS_COLOR = Object.fromEntries(STATUSES.map(k=>[k, STATUS_DEF[k].color]));
+
+const LANES = [
+  {id:"backlog",   title:"Not Dispatched", color:"#94A3B8"},
+  {id:"transit",   title:"In Transit",     color:"#E8A317"},
+  {id:"deferred",  title:"Deferred",       color:"#7C3AED"},
+  {id:"done",      title:"Delivered",      color:"#178A50"},
+  {id:"exception", title:"Exceptions",     color:"#D7263D"},
+];
+// closed = no longer being attempted; excluded from re-routing
+const CLOSED   = ["delivered","notdelivered","returned","rollbackwh"];
+const FAILED   = ["notdelivered","returned","rollbackwh"];   // counts against success rate
+// COD is still expected on anything not closed
+const isClosed = s=>CLOSED.includes(s);
 const FAIL_REASONS = ["Customer unreachable","Customer refused","Wrong / incomplete address","Postponed by customer","No cash for COD","Address closed","Other"];
 
 let _vid=1, _sid=1;
@@ -417,14 +470,15 @@ const state = {
   depot2:{name:"Second start point", lat:30.0744, lng:31.3450},
   depot2on:false,
   vehicles:[
-    {id:vid(), name:"Van A", capacityKg:300, maxStops:18, color:PALETTE[0], depot:0},
-    {id:vid(), name:"Van B", capacityKg:300, maxStops:18, color:PALETTE[1], depot:0},
-    {id:vid(), name:"Van C", capacityKg:300, maxStops:18, color:PALETTE[2], depot:0},
+    {id:vid(), name:"Van A", driver:"", rep:"", capacityKg:300, maxStops:18, color:PALETTE[0], depot:0},
+    {id:vid(), name:"Van B", driver:"", rep:"", capacityKg:300, maxStops:18, color:PALETTE[1], depot:0},
+    {id:vid(), name:"Van C", driver:"", rep:"", capacityKg:300, maxStops:18, color:PALETTE[2], depot:0},
   ],
   shipments:[],
   settings:{avgSpeed:20, serviceMin:6, returnToDepot:true},
   routes:[], unassigned:[], planned:false,
-  tab:"plan", trackedId:null, boardVeh:""
+  tab:"plan", trackedId:null, boardVeh:"",
+  manualRoutes:{}   // { vehicleId: true } -> keep dispatcher's hand-made order
 };
 
 /* ---------- status helpers ---------- */
@@ -438,7 +492,7 @@ function newShipment(o){
 function setStatus(id, status, reason){
   const s=state.shipments.find(x=>x.id===id); if(!s) return;
   if(s.status===status && !reason) return;
-  s.status=status; s.failReason=(status==="failed")?(reason||s.failReason||FAIL_REASONS[0]):"";
+  s.status=status; s.failReason=FAILED.includes(status)?(reason||s.failReason||FAIL_REASONS[0]):"";
   s.history.push({status, ts:Date.now(), reason:s.failReason||"", note:""});
   render();
 }
@@ -493,7 +547,7 @@ function assignAndOptimize(){
   const byId=Object.fromEntries(routes.map(r=>[r.vehicle.id,r]));
   const unassigned=[];
   // terminal stops (delivered/failed) are not re-routed
-  const routable=state.shipments.filter(s=>s.status!=="delivered"&&s.status!=="failed");
+  const routable=state.shipments.filter(s=>!isClosed(s.status));
   const free=[];
   routable.forEach(s=>{ if(s.pin&&byId[s.pin]){const r=byId[s.pin]; r.stops.push(s); r.weight+=s.weightKg||0;} else free.push(s); });
 
@@ -523,15 +577,51 @@ function assignAndOptimize(){
 
   routes.forEach(r=>{
     const dep=r.depot;
-    r.ordered=optimize(dep,r.stops,ret);
+    // Manual mode: the dispatcher has hand-sequenced this van, so respect that order
+    // instead of re-optimising. Stops carry s.ord; new/unordered stops go to the end.
+    if(state.manualRoutes[r.vehicle.id]){
+      r.manual=true;
+      r.ordered=r.stops.slice().sort((a,b)=>{
+        const ao=(a.ord==null?9999:a.ord), bo=(b.ord==null?9999:b.ord);
+        return ao-bo;
+      });
+      r.ordered.forEach((s,i)=>{ s.ord=i; });   // renumber cleanly
+    } else {
+      r.manual=false;
+      r.ordered=optimize(dep,r.stops,ret);
+      r.ordered.forEach((s,i)=>{ s.ord=i; });   // keep ord in sync with auto order
+    }
     r.dist=routeLength(dep,r.ordered,ret);
     r.cod=r.ordered.reduce((a,s)=>a+(s.cod||0),0);
     r.pkgs=r.ordered.reduce((a,s)=>a+(s.packages||0),0);
     r.timeMin=(r.dist/Math.max(1,state.settings.avgSpeed))*60 + r.ordered.length*state.settings.serviceMin;
     r.ordered.forEach(s=>{ s.vehicleId=r.vehicle.id; s.vehicleName=r.vehicle.name; s.color=r.vehicle.color; });
   });
-  unassigned.forEach(s=>{ s.vehicleId=null; s.vehicleName=""; s.color="#94A3B8"; });
+  unassigned.forEach(s=>{ s.vehicleId=null; s.vehicleName=""; s.color="#94A3B8"; s.ord=null; });
   state.routes=routes; state.unassigned=unassigned;
+}
+
+/* ---------- manual route editing ---------- */
+// move a stop up/down inside its own route; first edit switches that van to manual mode
+function moveStop(shipId, dir){
+  const s=state.shipments.find(x=>x.id===shipId); if(!s) return;
+  const r=state.routes.find(r=>r.vehicle.id===s.vehicleId); if(!r||!r.ordered) return;
+  const i=r.ordered.findIndex(x=>x.id===shipId);
+  const j=i+dir;
+  if(i<0 || j<0 || j>=r.ordered.length) return;
+  state.manualRoutes[r.vehicle.id]=true;           // lock this van to manual order
+  const arr=r.ordered;
+  [arr[i],arr[j]]=[arr[j],arr[i]];                 // swap
+  arr.forEach((x,k)=>{ x.ord=k; x.pin=r.vehicle.id; });  // pin so rebuild keeps them here
+  assignAndOptimize(); render();
+  toast(r.vehicle.name+" is now in manual order.");
+}
+// hand this van back to the optimiser
+function autoRoute(vehId){
+  delete state.manualRoutes[vehId];
+  const r=state.routes.find(r=>r.vehicle.id===vehId);
+  assignAndOptimize(); render();
+  toast((r?r.vehicle.name:"Route")+" re-optimised automatically.");
 }
 
 /* ---------- render ---------- */
@@ -548,13 +638,22 @@ function renderTabs(){
   el("tabTrackB").textContent=state.shipments.filter(s=>s.status==="out").length;
 }
 function kpiData(){
-  const by={pending:0,out:0,delivered:0,failed:0}; let codColl=0, codOut=0;
-  state.shipments.forEach(s=>{ by[s.status]=(by[s.status]||0)+1;
-    if(s.status==="delivered") codColl+=s.cod||0;
-    else if(s.status==="pending"||s.status==="out") codOut+=s.cod||0; });
-  const done=by.delivered+by.failed;
-  const rate=done? Math.round(by.delivered/done*100):null;
-  return {by, codColl, codOut, total:state.shipments.length, rate};
+  const by={}; STATUSES.forEach(k=>by[k]=0);
+  let codColl=0, codOut=0, codLost=0;
+  state.shipments.forEach(s=>{
+    by[s.status]=(by[s.status]||0)+1;
+    if(s.status==="delivered") codColl+=s.cod||0;          // money in hand
+    else if(FAILED.includes(s.status)) codLost+=s.cod||0;  // closed, never collected
+    else codOut+=s.cod||0;                                 // still in play
+  });
+  const delivered=by.delivered||0;
+  const failed=FAILED.reduce((a,k)=>a+(by[k]||0),0);
+  const open=state.shipments.length-delivered-failed;
+  const done=delivered+failed;
+  const rate=done? Math.round(delivered/done*100):null;
+  const laneCount={}; LANES.forEach(L=>laneCount[L.id]=0);
+  state.shipments.forEach(s=>{ const L=(STATUS_DEF[s.status]||{}).lane; if(L!=null) laneCount[L]=(laneCount[L]||0)+1; });
+  return {by, laneCount, codColl, codOut, codLost, total:state.shipments.length, rate, delivered, failed, open};
 }
 function renderHeader(){
   const k=kpiData();
@@ -574,11 +673,19 @@ function renderVehicles(){
     const depSel = state.depot2on ? `<select class="vdep" title="Start point" style="width:auto;min-width:64px;padding:4px 6px;font-size:11px;margin-left:auto">
         <option value="0" ${(v.depot||0)===0?'selected':''}>Start 1</option>
         <option value="1" ${v.depot===1?'selected':''}>Start 2</option></select>` : '';
-    d.innerHTML=`<span class="dot" style="background:${v.color}"></span>
-      <span class="vn">${esc(v.name)}</span>
-      <span class="vc">${v.capacityKg}kg · ${v.maxStops} stops</span>
-      ${depSel}
-      <button class="btn sm danger rm" title="Remove" ${state.depot2on?'':'style="margin-left:auto"'}>✕</button>`;
+    d.innerHTML=`<div class="vtop">
+        <span class="dot" style="background:${v.color}"></span>
+        <span class="vn">${esc(v.name)}</span>
+        <span class="vc">${v.capacityKg}kg · ${v.maxStops} stops</span>
+        ${depSel}
+        <button class="btn sm danger rm" title="Remove" ${state.depot2on?'':'style="margin-left:auto"'}>✕</button>
+      </div>
+      <div class="vcrew">
+        <input class="vdrv" placeholder="Driver name" dir="auto" value="${esc(v.driver||'')}" title="اسم السواق">
+        <input class="vrep" placeholder="Courier / rep" dir="auto" value="${esc(v.rep||'')}" title="اسم المندوب">
+      </div>`;
+    const dv=d.querySelector(".vdrv"); if(dv) dv.onchange=()=>{ v.driver=dv.value.trim(); render(); };
+    const rp=d.querySelector(".vrep"); if(rp) rp.onchange=()=>{ v.rep=rp.value.trim(); render(); };
     const sel=d.querySelector(".vdep"); if(sel) sel.onchange=()=>{ v.depot=parseInt(sel.value)||0; state.planned=false; render(); };
     d.querySelector(".rm").onclick=()=>{ state.vehicles=state.vehicles.filter(x=>x.id!==v.id); state.planned=false; render(); };
     box.appendChild(d);
@@ -615,9 +722,9 @@ function renderMap(){
       const dpath=seq.map((p,i)=>{const q=proj(p);return (i?"L":"M")+q.x.toFixed(1)+" "+q.y.toFixed(1);}).join(" ");
       svg+=`<path d="${dpath}" fill="none" stroke="${r.vehicle.color}" stroke-width="2.4" stroke-opacity="0.85" stroke-linejoin="round"/>`;});
     state.routes.forEach(r=>{(r.ordered||[]).forEach((s,i)=>{const q=proj(s);
-      const fill = s.status==="delivered" ? "#178A50" : s.status==="failed" ? "#D7263D" : r.vehicle.color;
+      const fill = s.status==="delivered" ? "#178A50" : FAILED.includes(s.status) ? "#D7263D" : r.vehicle.color;
       svg+=`<circle cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="10" fill="${fill}" stroke="#fff" stroke-width="1.6"/>`;
-      const mark = s.status==="delivered" ? "✓" : s.status==="failed" ? "✕" : (i+1);
+      const mark = s.status==="delivered" ? "✓" : FAILED.includes(s.status) ? "✕" : (i+1);
       svg+=`<text x="${q.x.toFixed(1)}" y="${(q.y+3.6).toFixed(1)}" text-anchor="middle" font-size="10" font-family="ui-monospace,monospace" font-weight="700" fill="#fff">${mark}</text>`;
       if(s.urgent&&s.status!=="delivered") svg+=`<circle cx="${(q.x+8).toFixed(1)}" cy="${(q.y-8).toFixed(1)}" r="3.4" fill="#D7263D" stroke="#fff" stroke-width="1"/>`;});});
     state.unassigned.forEach(s=>{const q=proj(s);
@@ -654,21 +761,27 @@ function renderRoutes(){
   sum.innerHTML=`<b class="num">${totStops}</b> stops · <b class="num">${active.length}</b> routes · <b class="num">${Math.round(totKm)}</b> km · COD <b class="num">${fmtEGP(totCod)}</b> EGP`;
   box.innerHTML=active.map((r,idx)=>{
     const capPct=Math.round(r.weight/r.vehicle.capacityKg*100);
-    const dlv=r.ordered.filter(s=>s.status==="delivered").length, fl=r.ordered.filter(s=>s.status==="failed").length;
+    const dlv=r.ordered.filter(s=>s.status==="delivered").length, fl=r.ordered.filter(s=>FAILED.includes(s.status)).length;
     const rows=r.ordered.map((s,i)=>`
       <tr class="${s.urgent?'urgent':''} ${s.status==='delivered'?'done':''}">
-        <td><span class="seq" style="background:${s.status==='delivered'?'#178A50':s.status==='failed'?'#D7263D':r.vehicle.color}">${s.status==='delivered'?'✓':s.status==='failed'?'✕':(i+1)}</span></td>
+        <td><span class="seq" style="background:${s.status==='delivered'?'#178A50':FAILED.includes(s.status)?'#D7263D':r.vehicle.color}">${s.status==='delivered'?'✓':FAILED.includes(s.status)?'✕':(i+1)}</span></td>
+        <td class="awb">${esc(s.id||'—')}</td>
         <td dir="auto"><b>${esc(s.customer||'—')}</b>${s.urgent?' <span class="pill u">urgent</span>':''}<br><span style="color:var(--muted)">${esc(s.zone||'')}${s.address?' · '+esc(s.address):''}</span></td>
         <td class="r">${s.packages||0}</td>
         <td class="r">${(s.weightKg||0)}</td>
         <td class="r">${fmtEGP(s.cod||0)}</td>
-        <td><span class="sb ${s.status}">${STATUS_LABEL[s.status]}</span></td>
+        <td><span class="sb" style="color:#fff;background:${STATUS_COLOR[s.status]||'#94A3B8'}">${esc(STATUS_LABEL[s.status]||s.status)}</span></td>
+        <td class="ord">
+          <button class="btn sm ordbtn" data-mv="${s.id}|-1" title="Move earlier" ${i===0?'disabled':''}>↑</button>
+          <button class="btn sm ordbtn" data-mv="${s.id}|1" title="Move later" ${i===r.ordered.length-1?'disabled':''}>↓</button>
+        </td>
         <td>${reassignSelect(s.id,r.vehicle.id)}</td>
       </tr>`).join("");
     return `<div class="route">
       <div class="rh" style="background:${r.vehicle.color}">
-        <span class="rname">${esc(r.vehicle.name)}</span>
+        <span class="rname">${esc(r.vehicle.name)}${(r.vehicle.driver||r.vehicle.rep)?`<small class="crew">${[r.vehicle.driver&&('🚚 '+esc(r.vehicle.driver)), r.vehicle.rep&&('👤 '+esc(r.vehicle.rep))].filter(Boolean).join(' · ')}</small>`:''}</span>
         <span class="rtag">${r.ordered.length} stops · ${r.dist.toFixed(1)} km · ${fmtTime(r.timeMin)}${dlv||fl?` · ✓${dlv} ✕${fl}`:''}</span>
+        ${r.manual?`<span class="manual-tag">✎ Manual order</span><button class="btn" data-auto="${r.vehicle.id}" title="Let the optimiser re-sequence this van">Auto-optimise</button>`:''}
         <button class="btn go" data-dispatch="${idx}">Dispatch</button>
       </div>
       <div class="metrics">
@@ -679,11 +792,14 @@ function renderRoutes(){
         <div class="m"><b class="num">${fmtTime(r.timeMin)}</b><span>Est. time</span></div>
         <div class="m"><b class="num">${fmtEGP(r.cod)}</b><span>COD EGP</span></div>
       </div>
-      <table><thead><tr><th>#</th><th>Customer / location</th><th class="r">Pkg</th><th class="r">Kg</th><th class="r">COD</th><th>Status</th><th>Move to</th></tr></thead>
+      <table><thead><tr><th>#</th><th>Shipment #</th><th>Customer / location</th><th class="r">Pkg</th><th class="r">Kg</th><th class="r">COD</th><th>Status</th><th>Order</th><th>Move to</th></tr></thead>
         <tbody>${rows}</tbody></table>
     </div>`;
   }).join("");
   box.querySelectorAll("[data-dispatch]").forEach(b=>b.onclick=e=>{e.stopPropagation();dispatchRoute(+b.dataset.dispatch);});
+  box.querySelectorAll("[data-mv]").forEach(b=>b.onclick=e=>{ e.stopPropagation();
+    const [id,d]=b.dataset.mv.split("|"); moveStop(id, parseInt(d,10)); });
+  box.querySelectorAll("[data-auto]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); autoRoute(b.dataset.auto); });
   box.querySelectorAll("select.reassign").forEach(sel=>sel.onchange=()=>reassign(sel.dataset.s,sel.value));
   un.innerHTML = state.unassigned.length ? `
     <div class="note bad" style="margin-top:12px"><b>${state.unassigned.length} stop(s) could not be assigned</b> — demand exceeds fleet capacity. Add a vehicle or raise capacity/stop limits, then rebuild.</div>
@@ -707,7 +823,7 @@ function renderShipTable(){
       <td dir="auto">${esc(s.customer||'—')}${s.urgent?' <span class="pill u">urgent</span>':''}</td>
       <td>${esc(s.zone||'—')}</td>
       <td class="r">${s.packages||0}</td><td class="r">${s.weightKg||0}</td><td class="r">${fmtEGP(s.cod||0)}</td>
-      <td><span class="sb ${s.status}">${STATUS_LABEL[s.status]}</span></td>
+      <td><span class="sb" style="color:#fff;background:${STATUS_COLOR[s.status]||'#94A3B8'}">${esc(STATUS_LABEL[s.status]||s.status)}</span></td>
       <td class="r"><button class="btn sm danger" data-del="${s.id}">✕</button></td></tr>`).join("")}</tbody></table>`;
   box.querySelectorAll("[data-del]").forEach(b=>b.onclick=()=>{state.shipments=state.shipments.filter(x=>x.id!==b.dataset.del);state.planned=false;render();});
 }
@@ -717,13 +833,14 @@ function renderTracking(){
   const k=kpiData();
   el("boardCount").textContent=state.shipments.length;
   el("kpis").innerHTML=`
-    <div class="kpi k-out"><b class="num">${k.by.out}</b><span>Out for delivery</span></div>
-    <div class="kpi k-del"><b class="num">${k.by.delivered}</b><span>Delivered</span><small>${k.rate==null?'—':k.rate+'% success'}</small></div>
-    <div class="kpi k-fail"><b class="num">${k.by.failed}</b><span>Failed</span></div>
-    <div class="kpi k-pend"><b class="num">${k.by.pending}</b><span>Pending</span></div>
+    <div class="kpi k-out"><b class="num">${k.laneCount.transit}</b><span>In transit</span><small>${k.by.out} out · ${k.by.transfer} transfer</small></div>
+    <div class="kpi k-del"><b class="num">${k.delivered}</b><span>Delivered</span><small>${k.rate==null?'—':k.rate+'% success'}</small></div>
+    <div class="kpi k-fail"><b class="num">${k.failed}</b><span>Exceptions</span><small>${k.by.notdelivered} not delivered · ${k.by.returned} returned</small></div>
+    <div class="kpi k-pend"><b class="num">${k.laneCount.backlog}</b><span>Not dispatched</span><small>${k.laneCount.deferred} deferred</small></div>
     <div class="kpi"><b class="num">${k.total}</b><span>Total stops</span></div>
     <div class="kpi k-del"><b class="num">${fmtEGP(k.codColl)}</b><span>COD collected (EGP)</span></div>
     <div class="kpi k-out"><b class="num">${fmtEGP(k.codOut)}</b><span>COD outstanding (EGP)</span></div>
+    <div class="kpi k-fail"><b class="num">${fmtEGP(k.codLost)}</b><span>COD not collected (EGP)</span></div>
     <div class="kpi"><b class="num">${state.routes.filter(r=>r.ordered&&r.ordered.length).length}</b><span>Active routes</span></div>`;
   const vsel=el("trkVeh"), cur=state.boardVeh;
   vsel.innerHTML=`<option value="">All vehicles</option>`+state.vehicles.map(v=>`<option value="${v.id}" ${v.id===cur?'selected':''}>${esc(v.name)}</option>`).join("");
@@ -731,33 +848,57 @@ function renderTracking(){
 }
 function renderBoard(){
   const board=el("board");
+  const keepScroll = board ? board.scrollLeft : 0;   // don't jump back to column 1
   if(!state.shipments.length){ board.innerHTML=`<div class="empty" style="grid-column:1/-1">No shipments yet. Add stops and build routes in the Plan tab.</div>`; return; }
   const filt=state.boardVeh;
   board.innerHTML=STATUSES.map(st=>{
     const items=state.shipments.filter(s=>s.status===st && (!filt || s.vehicleId===filt));
     const cards=items.map(s=>tcard(s)).join("") || `<div class="lane-empty">None</div>`;
     return `<div class="lane">
-      <h3><span class="swd" style="background:${STATUS_COLOR[st]}"></span>${STATUS_LABEL[st]}<span class="c">${items.length}</span></h3>
+      <h3><span class="swd" style="background:${STATUS_COLOR[st]}"></span>${esc(STATUS_LABEL[st])}<span class="c">${items.length}</span></h3>
       <div class="cards">${cards}</div></div>`;
   }).join("");
-  board.querySelectorAll("[data-open]").forEach(c=>c.onclick=e=>{ if(e.target.closest(".acts"))return; state.trackedId=c.dataset.open; el("trkId").value=c.dataset.open; renderTrackResult(); window.scrollTo({top:0,behavior:'smooth'}); });
+  board.querySelectorAll("[data-open]").forEach(c=>c.onclick=e=>{
+    // ignore clicks on the controls inside the card (buttons + status dropdown)
+    if(e.target.closest(".acts") || e.target.closest("select") || e.target.tagName==="SELECT" || e.target.tagName==="OPTION") return;
+    state.trackedId=c.dataset.open; el("trkId").value=c.dataset.open; renderTrackResult();
+    window.scrollTo({top:0,behavior:'smooth'});
+  });
+  board.querySelectorAll("select.stsel").forEach(sel=>{
+    // swallow the click/mousedown so the parent card never sees it
+    sel.onclick=e=>e.stopPropagation();
+    sel.onmousedown=e=>e.stopPropagation();
+    sel.onchange=e=>{
+      e.stopPropagation();
+      const id=sel.dataset.s, st=sel.value;
+      if(st==="notdelivered") openFail(id); else setStatus(id,st);
+    };
+  });
+  if(board) board.scrollLeft = keepScroll;
   board.querySelectorAll("[data-set]").forEach(b=>b.onclick=e=>{e.stopPropagation(); const [id,st]=b.dataset.set.split("|");
-    if(st==="failed"){ openFail(id); } else setStatus(id,st); });
+    if(st==="notdelivered"){ openFail(id); } else setStatus(id,st); });
 }
 function tcard(s){
   const vd = s.color||"#94A3B8";
-  const acts = s.status==="pending" ? `<button class="btn sm go" data-set="${s.id}|out">Out</button>`
-    : s.status==="out" ? `<button class="btn sm go" data-set="${s.id}|delivered">Delivered</button><button class="btn sm danger" data-set="${s.id}|failed">Failed</button>`
-    : s.status==="failed" ? `<button class="btn sm" data-set="${s.id}|out">Retry</button>`
+  const lane=(STATUS_DEF[s.status]||{}).lane;
+  // quick buttons for the most common next move; dropdown covers all 12
+  const acts = lane==="backlog" ? `<button class="btn sm go" data-set="${s.id}|out">Out</button>`
+    : lane==="transit" ? `<button class="btn sm go" data-set="${s.id}|delivered">Delivered</button><button class="btn sm danger" data-set="${s.id}|notdelivered">Not delivered</button>`
+    : lane==="deferred" ? `<button class="btn sm go" data-set="${s.id}|scheduled">Schedule</button>`
+    : lane==="exception" ? `<button class="btn sm" data-set="${s.id}|reschedule">Reschedule</button>`
     : `<button class="btn sm" data-set="${s.id}|out">Reopen</button>`;
+  const opts=STATUSES.map(k=>`<option value="${k}" ${k===s.status?'selected':''}>${esc(STATUS_LABEL[k])}</option>`).join("");
   const last=s.history[s.history.length-1];
   return `<div class="tcard" data-open="${s.id}">
     <div class="t1"><span>${s.id}</span>${s.vehicleName?`· ${esc(s.vehicleName)}`:''}<span class="vd" style="background:${vd}"></span></div>
     <div class="t2" dir="auto">${esc(s.customer||'—')}${s.urgent?' <span class="pill u">urgent</span>':''}</div>
     <div class="t3"><span>${esc(s.zone||'')}</span><span class="num">${fmtEGP(s.cod||0)} EGP</span></div>
-    ${s.status==="failed"&&s.failReason?`<div class="t3" style="color:var(--failed)">${esc(s.failReason)}</div>`:''}
+    <div class="t3"><span class="sb" style="color:#fff;background:${STATUS_COLOR[s.status]||'#94A3B8'}">${esc(STATUS_LABEL[s.status]||s.status)}</span></div>
+    ${FAILED.includes(s.status)&&s.failReason?`<div class="t3" style="color:var(--failed)">${esc(s.failReason)}</div>`:''}
     <div class="t3" style="color:var(--muted)"><span>${last?clock(last.ts):''}</span></div>
-    <div class="acts">${acts}</div></div>`;
+    <div class="acts">${acts}</div>
+    <select class="stsel" data-s="${s.id}" style="margin-top:6px;width:100%">${opts}</select>
+  </div>`;
 }
 function renderTrackResult(){
   const box=el("trackResult"); const id=state.trackedId;
@@ -769,7 +910,7 @@ function renderTrackResult(){
       <div class="st">${STATUS_LABEL[h.status]||h.status}</div>
       ${h.reason?`<div class="rs">Reason: ${esc(h.reason)}</div>`:''}${h.note?`<div class="rs">${esc(h.note)}</div>`:''}</li>`).join("");
   box.innerHTML=`<div class="tl-head">
-      <span class="sb ${s.status}">${STATUS_LABEL[s.status]}</span>
+      <span class="sb" style="color:#fff;background:${STATUS_COLOR[s.status]||'#94A3B8'}">${esc(STATUS_LABEL[s.status]||s.status)}</span>
       <b dir="auto">${esc(s.customer||'—')}</b>
       <span class="id">${s.id}</span>
       <span class="hint" style="margin:0">${esc(s.zone||'')}${s.vehicleName?' · '+esc(s.vehicleName):''} · COD ${fmtEGP(s.cod||0)} EGP</span>
@@ -788,7 +929,7 @@ function openFail(id){
       const reason=document.getElementById("failReason").value;
       const note=document.getElementById("failNote").value.trim();
       const s=state.shipments.find(x=>x.id===id);
-      if(s){ s.status="failed"; s.failReason=reason; s.history.push({status:"failed",ts:Date.now(),reason,note}); }
+      if(s){ s.status="notdelivered"; s.failReason=reason; s.history.push({status:"notdelivered",ts:Date.now(),reason,note}); }
       closeModal(); render();
     });
 }
@@ -802,9 +943,10 @@ function syncSettingsFromInputs(){state.settings.avgSpeed=Math.max(1,parseFloat(
   state.settings.serviceMin=Math.max(0,parseFloat(el("setService").value)||6); state.settings.returnToDepot=el("setReturn").checked;}
 function addVehicle(){
   const name=el("nvName").value.trim()||("Van "+String.fromCharCode(65+state.vehicles.length));
+  const driver=el("nvDriver").value.trim(), rep=el("nvRep").value.trim();
   const kg=parseFloat(el("nvKg").value)||300,st=parseInt(el("nvStops").value)||18;
-  state.vehicles.push({id:vid(),name,capacityKg:kg,maxStops:st,color:PALETTE[state.vehicles.length%PALETTE.length],depot:0});
-  el("nvName").value=el("nvKg").value=el("nvStops").value=""; state.planned=false; render();
+  state.vehicles.push({id:vid(),name,driver,rep,capacityKg:kg,maxStops:st,color:PALETTE[state.vehicles.length%PALETTE.length],depot:0});
+  el("nvName").value=el("nvKg").value=el("nvStops").value=el("nvDriver").value=el("nvRep").value=""; state.planned=false; render();
 }
 function addStop(){
   const zone=el("sZone").value,z=ZONES[zone]||[state.depot.lat,state.depot.lng],jit=()=>(Math.random()-0.5)*0.012;
@@ -1024,19 +1166,20 @@ function loadSample(){
 /* export */
 function exportCSV(){
   if(!state.planned){toast("Build routes first.");return;}
-  let csv="route,sequence,order_id,customer,zone,address,packages,weight_kg,cod_egp,status,urgent,lat,lng\n";
+  let csv="vehicle,driver,rep,sequence,shipment_no,customer,zone,address,packages,weight_kg,cod_egp,status,urgent,lat,lng\n";
   state.routes.filter(r=>r.ordered&&r.ordered.length).forEach(r=>{r.ordered.forEach((s,i)=>{
-    csv+=[r.vehicle.name,i+1,s.id,q(s.customer),q(s.zone),q(s.address),s.packages||0,s.weightKg||0,s.cod||0,s.status,s.urgent?"yes":"no",s.lat.toFixed(5),s.lng.toFixed(5)].join(",")+"\n";});});
-  state.unassigned.forEach(s=>{csv+=["UNASSIGNED",">",s.id,q(s.customer),q(s.zone),q(s.address),s.packages||0,s.weightKg||0,s.cod||0,s.status,s.urgent?"yes":"no",s.lat.toFixed(5),s.lng.toFixed(5)].join(",")+"\n";});
+    csv+=[q(r.vehicle.name),q(r.vehicle.driver||""),q(r.vehicle.rep||""),i+1,s.id,q(s.customer),q(s.zone),q(s.address),s.packages||0,s.weightKg||0,s.cod||0,s.status,s.urgent?"yes":"no",s.lat.toFixed(5),s.lng.toFixed(5)].join(",")+"\n";});});
+  state.unassigned.forEach(s=>{csv+=["UNASSIGNED","","",">",s.id,q(s.customer),q(s.zone),q(s.address),s.packages||0,s.weightKg||0,s.cod||0,s.status,s.urgent?"yes":"no",s.lat.toFixed(5),s.lng.toFixed(5)].join(",")+"\n";});
   download("raneen_routes_"+today()+".csv",csv);
 }
 function exportTracking(){
   if(!state.shipments.length){toast("No shipments to export.");return;}
-  let csv="order_id,customer,zone,vehicle,status,fail_reason,cod_egp,cod_collected,created,dispatched,closed\n";
+  let csv="shipment_no,customer,zone,vehicle,driver,rep,status,fail_reason,cod_egp,cod_collected,created,dispatched,closed\n";
   state.shipments.forEach(s=>{
     const ev=t=>{const h=s.history.find(x=>x.status===t);return h?new Date(h.ts).toLocaleString():"";};
-    const closed=(s.status==="delivered"||s.status==="failed")?new Date(s.history[s.history.length-1].ts).toLocaleString():"";
-    csv+=[s.id,q(s.customer),q(s.zone),q(s.vehicleName||""),s.status,q(s.failReason||""),s.cod||0,s.status==="delivered"?"yes":"no",ev("pending"),ev("out"),closed].join(",")+"\n";});
+    const closed=isClosed(s.status)?new Date(s.history[s.history.length-1].ts).toLocaleString():"";
+    const v=state.vehicles.find(x=>x.id===s.vehicleId)||{};
+    csv+=[s.id,q(s.customer),q(s.zone),q(s.vehicleName||""),q(v.driver||""),q(v.rep||""),s.status,q(s.failReason||""),s.cod||0,s.status==="delivered"?"yes":"no",ev("pending"),ev("out"),closed].join(",")+"\n";});
   download("raneen_tracking_"+today()+".csv",csv);
 }
 function q(s){s=(s==null?"":String(s));return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
@@ -1047,13 +1190,15 @@ function printSheets(){
   const active=state.routes.filter(r=>r.ordered&&r.ordered.length);
   el("runSheets").innerHTML=active.map(r=>{
     const rows=r.ordered.map((s,i)=>`<tr><td style="width:26px;text-align:center">${i+1}</td>
+      <td style="font-family:monospace;white-space:nowrap">${esc(s.id||'—')}</td>
       <td>${esc(s.customer||'—')}${s.urgent?' ⚑':''}</td>
       <td>${esc(s.zone||'')}${s.address?' — '+esc(s.address):''}</td>
       <td style="text-align:right">${s.packages||0}</td><td style="text-align:right">${s.weightKg||0}</td>
       <td style="text-align:right">${fmtEGP(s.cod||0)}</td><td style="width:78px"></td><td style="width:90px"></td></tr>`).join("");
     return `<div class="rs-sheet"><h2>${esc(r.vehicle.name)} — run sheet</h2>
       <p class="sub">${today()} · Start: ${esc((r.depot||state.depot).name)} · ${r.ordered.length} stops · ${r.dist.toFixed(1)} km · est ${fmtTime(r.timeMin)} · COD to collect ${fmtEGP(r.cod)} EGP</p>
-      <table><thead><tr><th>#</th><th>Customer</th><th>Location / notes</th><th>Pkg</th><th>Kg</th><th>COD</th><th>Collected</th><th>Signature</th></tr></thead>
+      <p class="sub"><b>Vehicle:</b> ${esc(r.vehicle.name)} &nbsp;·&nbsp; <b>Driver:</b> ${esc(r.vehicle.driver||'____________')} &nbsp;·&nbsp; <b>Courier / rep:</b> ${esc(r.vehicle.rep||'____________')}</p>
+      <table><thead><tr><th>#</th><th>Shipment #</th><th>Customer</th><th>Location / notes</th><th>Pkg</th><th>Kg</th><th>COD</th><th>Collected</th><th>Signature</th></tr></thead>
       <tbody>${rows}</tbody></table></div>`;}).join("");
   window.print();
 }
