@@ -59,7 +59,7 @@
   label.fld{display:block; font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:.06em; margin:0 0 4px}
   input,select,textarea{font-family:var(--sans); font-size:13px; color:var(--ink); background:var(--surface); border:1px solid var(--line); border-radius:7px; padding:8px 9px; width:100%;}
   input:focus,select:focus,textarea:focus{outline:2px solid var(--accent); outline-offset:0; border-color:var(--accent)}
-  .row{display:grid; gap:8px} .row.c2{grid-template-columns:1fr 1fr} .row.c3{grid-template-columns:1fr 1fr 1fr} .row+.row{margin-top:8px}
+  .row{display:grid; gap:8px} .row.c2{grid-template-columns:1fr 1fr} .row.c3{grid-template-columns:1fr 1fr 1fr} .row.c4{grid-template-columns:1.4fr 1fr 1fr 1fr} .row+.row{margin-top:8px}
   .hint{font-size:11px; color:var(--muted); margin:6px 0 0}
 
   .veh{display:flex; flex-direction:column; gap:7px; padding:8px; border:1px solid var(--line); border-radius:8px; background:var(--surface-2)}
@@ -104,6 +104,13 @@
   .pill.u{background:var(--danger-soft); color:var(--danger)}
   .reassign,.stsel{font-size:11px; padding:3px 5px; width:auto; min-width:104px}
   td.awb{font-family:var(--mono); font-size:11.5px; color:var(--ink-2); white-space:nowrap}
+  .kind{display:inline-block; font-size:9px; font-weight:800; letter-spacing:.05em; padding:1px 5px;
+    border-radius:4px; margin-right:5px; vertical-align:1px}
+  .kind.dl{background:var(--accent-soft); color:var(--accent-ink)}
+  .kind.pk{background:#DCFCE7; color:#166534}
+  .loadbar{display:flex; flex-wrap:wrap; gap:14px; padding:8px 12px; font-size:11.5px;
+    background:#F0FDF4; border-bottom:1px solid var(--line); color:#14532D}
+  .loadbar.over{background:var(--danger-soft); color:#8E1B2B; font-weight:700}
   .navbtn{text-decoration:none; padding:3px 8px; line-height:1.2}
   .navbtn:hover{background:var(--accent-soft); border-color:var(--accent)}
   td.ord{white-space:nowrap}
@@ -260,10 +267,11 @@
       <span class="vc">300kg · 18 stops</span>
       
       <button class="btn sm danger rm" title="Remove" style="margin-left:auto">✕</button></div></div>
-          <div class="row c3" style="margin-top:10px">
+          <div class="row c4" style="margin-top:10px">
             <input id="nvName" placeholder="Vehicle no. / plate" title="Vehicle number or plate">
             <input id="nvKg" class="num" placeholder="kg" title="Weight capacity (kg)">
             <input id="nvStops" class="num" placeholder="stops" title="Max stops">
+            <input id="nvPkgs" class="num" placeholder="pkgs" title="Max packages on board">
           </div>
           <div class="row c2" style="margin-top:8px">
             <input id="nvDriver" placeholder="Driver name" dir="auto" title="اسم السواق">
@@ -303,7 +311,8 @@
             <input type="checkbox" id="sUrgent" style="width:auto"> Mark as urgent
           </label>
           <button class="btn sm primary" id="btnAddStop" style="margin-top:10px;width:100%">+ Add stop</button>
-          <button class="btn sm" id="btnImport" style="margin-top:8px;width:100%">Import from CSV…</button>
+          <button class="btn sm" id="btnImport" style="margin-top:8px;width:100%">📥 Import deliveries (AWB)…</button>
+          <button class="btn sm" id="btnImportPk" style="margin-top:6px;width:100%">📦 Import seller pickups…</button>
         </div>
       </section>
     </div>
@@ -390,9 +399,9 @@
 <!-- CSV import modal -->
 <div class="modal-back" id="impBack">
   <div class="modal">
-    <h3>Import shipments</h3>
+    <h3 id="impTitle">Import deliveries</h3>
     <div class="mbody">
-      <p class="hint" style="margin-top:0">Pick an Excel (<b>.xlsx</b>) or <b>.csv</b> file from your computer. The MB Logistics AWB export is recognised automatically (Shipment #, Destination Area, Amount To Collect, …). A simple sheet with <b>order_id, customer, zone, address, lat, lng, weight_kg, packages, cod_egp, priority, notes</b> also works.</p>
+      <p class="hint" id="impHelp" style="margin-top:0"></p>
       <input type="file" id="impFile" accept=".xlsx,.xls,.csv" style="display:none">
       <button class="btn primary" id="impPick" style="width:100%;justify-content:center;padding:14px">📂 Choose file (.xlsx / .csv)</button>
       <div id="impFileName" class="hint" style="text-align:center"></div>
@@ -480,21 +489,24 @@ const state = {
   depot2:{name:"Second start point", lat:30.0744, lng:31.3450},
   depot2on:false,
   vehicles:[
-    {id:vid(), name:"Van A", driver:"", rep:"", capacityKg:300, maxStops:18, color:PALETTE[0], depot:0},
-    {id:vid(), name:"Van B", driver:"", rep:"", capacityKg:300, maxStops:18, color:PALETTE[1], depot:0},
-    {id:vid(), name:"Van C", driver:"", rep:"", capacityKg:300, maxStops:18, color:PALETTE[2], depot:0},
+    {id:vid(), name:"Van A", driver:"", rep:"", capacityKg:300, capacityPkgs:200, maxStops:18, color:PALETTE[0], depot:0},
+    {id:vid(), name:"Van B", driver:"", rep:"", capacityKg:300, capacityPkgs:200, maxStops:18, color:PALETTE[1], depot:0},
+    {id:vid(), name:"Van C", driver:"", rep:"", capacityKg:300, capacityPkgs:200, maxStops:18, color:PALETTE[2], depot:0},
   ],
   shipments:[],
   settings:{avgSpeed:20, serviceMin:6, returnToDepot:true},
   routes:[], unassigned:[], planned:false,
   tab:"plan", trackedId:null, boardVeh:"",
-  manualRoutes:{}   // { vehicleId: true } -> keep dispatcher's hand-made order
+  manualRoutes:{},  // { vehicleId: true } -> keep dispatcher's hand-made order
+  importMode:"delivery"   // which upload slot the user opened: "delivery" | "pickup"
 };
 
 /* ---------- status helpers ---------- */
 function newShipment(o){
   const s=Object.assign({id:sid(), customer:"", zone:"", address:"", lat:state.depot.lat, lng:state.depot.lng,
     weightKg:0, packages:1, cod:0, urgent:false, pin:null, vehicleId:null, vehicleName:"", color:"#94A3B8",
+    kind:"delivery",              // "delivery" = last mile to customer | "pickup" = first mile from seller
+    soldBy:"",                    // marketplace seller this order was sold by ("Sold By" column)
     status:"pending", failReason:"", history:[]}, o);
   s.history.push({status:"pending", ts:Date.now(), note:"Created"});
   return s;
@@ -598,13 +610,53 @@ function assignAndOptimize(){
       r.ordered.forEach((s,i)=>{ s.ord=i; });   // renumber cleanly
     } else {
       r.manual=false;
-      r.ordered=optimize(dep,r.stops,ret);
+      // MIXED TRIP (deliveries + seller pickups on the same van).
+      // The van leaves loaded with deliveries and comes back loaded with pickups, so
+      // its load falls then rises. Doing all DELIVERIES FIRST, then PICKUPS (a classic
+      // "backhaul") keeps the load profile safe: it never carries both full loads at once.
+      const drops = r.stops.filter(s=>!isPickup(s));
+      const picks = r.stops.filter(s=>isPickup(s));
+      if(picks.length && drops.length){
+        const legA = optimize(dep, drops, false);              // depot -> all drops
+        const start = legA.length ? legA[legA.length-1] : dep; // collect onward from the last drop
+        const legB = optimize(start, picks, ret);              // ... -> pickups -> back to depot
+        r.ordered = legA.concat(legB);
+      } else {
+        r.ordered = optimize(dep, r.stops, ret);
+      }
       r.ordered.forEach((s,i)=>{ s.ord=i; });   // keep ord in sync with auto order
     }
     r.dist=routeLength(dep,r.ordered,ret);
     r.cod=r.ordered.reduce((a,s)=>a+(s.cod||0),0);
     r.pkgs=r.ordered.reduce((a,s)=>a+(s.packages||0),0);
     r.timeMin=(r.dist/Math.max(1,state.settings.avgSpeed))*60 + r.ordered.length*state.settings.serviceMin;
+
+    // --- load profile: what the van is actually carrying at each point in the trip ---
+    r.dropCount = r.ordered.filter(s=>!isPickup(s)).length;
+    r.pickCount = r.ordered.filter(s=>isPickup(s)).length;
+    r.dropPkgs  = r.ordered.filter(s=>!isPickup(s)).reduce((a,s)=>a+(s.packages||0),0);
+    r.pickPkgs  = r.ordered.filter(s=>isPickup(s)).reduce((a,s)=>a+(s.packages||0),0);
+    r.dropKg    = r.ordered.filter(s=>!isPickup(s)).reduce((a,s)=>a+(s.weightKg||0),0);
+    r.pickKg    = r.ordered.filter(s=>isPickup(s)).reduce((a,s)=>a+(s.weightKg||0),0);
+
+    // walk the route: van leaves with all deliveries on board, drops them, collects pickups
+    let loadKg = r.dropKg, loadPk = r.dropPkgs;
+    let peakKg = loadKg,  peakPk = loadPk;
+    r.ordered.forEach(s=>{
+      if(isPickup(s)){ loadKg += (s.weightKg||0); loadPk += (s.packages||0); }
+      else           { loadKg -= (s.weightKg||0); loadPk -= (s.packages||0); }
+      s.loadAfterKg = Math.max(0, +loadKg.toFixed(1));
+      s.loadAfterPk = Math.max(0, loadPk);
+      if(loadKg>peakKg) peakKg=loadKg;
+      if(loadPk>peakPk) peakPk=loadPk;
+    });
+    r.peakKg = Math.max(0, +peakKg.toFixed(1));
+    r.peakPk = Math.max(0, peakPk);
+    const capPk = r.vehicle.capacityPkgs || 200;
+  r.capPkgs = capPk;
+  r.overKg   = r.peakKg > r.vehicle.capacityKg;
+  r.overPkgs = r.peakPk > capPk;
+  r.overCapacity = r.overKg || r.overPkgs;    // overflows at ANY point in the trip
     r.ordered.forEach(s=>{ s.vehicleId=r.vehicle.id; s.vehicleName=r.vehicle.name; s.color=r.vehicle.color; });
   });
   unassigned.forEach(s=>{ s.vehicleId=null; s.vehicleName=""; s.color="#94A3B8"; s.ord=null; });
@@ -737,7 +789,7 @@ function renderVehicles(){
     d.innerHTML=`<div class="vtop">
         <span class="dot" style="background:${v.color}"></span>
         <span class="vn">${esc(v.name)}</span>
-        <span class="vc">${v.capacityKg}kg · ${v.maxStops} stops</span>
+        <span class="vc">${v.capacityKg}kg · ${v.maxStops} stops · ${v.capacityPkgs||200} pkgs</span>
         ${depSel}
         <button class="btn sm danger rm" title="Remove" ${state.depot2on?'':'style="margin-left:auto"'}>✕</button>
       </div>
@@ -784,7 +836,9 @@ function renderMap(){
       svg+=`<path d="${dpath}" fill="none" stroke="${r.vehicle.color}" stroke-width="2.4" stroke-opacity="0.85" stroke-linejoin="round"/>`;});
     state.routes.forEach(r=>{(r.ordered||[]).forEach((s,i)=>{const q=proj(s);
       const fill = s.status==="delivered" ? "#178A50" : FAILED.includes(s.status) ? "#D7263D" : r.vehicle.color;
-      svg+=`<circle cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="10" fill="${fill}" stroke="#fff" stroke-width="1.6"/>`;
+      svg+= isPickup(s)
+        ? `<rect x="${(q.x-9.5).toFixed(1)}" y="${(q.y-9.5).toFixed(1)}" width="19" height="19" rx="3" fill="${fill}" stroke="#fff" stroke-width="1.8"/>`
+        : `<circle cx="${q.x.toFixed(1)}" cy="${q.y.toFixed(1)}" r="10" fill="${fill}" stroke="#fff" stroke-width="1.6"/>`;
       const mark = s.status==="delivered" ? "✓" : FAILED.includes(s.status) ? "✕" : (i+1);
       svg+=`<text x="${q.x.toFixed(1)}" y="${(q.y+3.6).toFixed(1)}" text-anchor="middle" font-size="10" font-family="ui-monospace,monospace" font-weight="700" fill="#fff">${mark}</text>`;
       if(s.urgent&&s.status!=="delivered") svg+=`<circle cx="${(q.x+8).toFixed(1)}" cy="${(q.y-8).toFixed(1)}" r="3.4" fill="#D7263D" stroke="#fff" stroke-width="1"/>`;});});
@@ -828,11 +882,15 @@ function renderRoutes(){
         <td><span class="seq" style="background:${s.status==='delivered'?'#178A50':FAILED.includes(s.status)?'#D7263D':r.vehicle.color}">${s.status==='delivered'?'✓':FAILED.includes(s.status)?'✕':(i+1)}</span></td>
         <td class="awb">${esc(s.id||'—')}</td>
         <td><a class="btn sm navbtn" href="${gmapsStop(s)}" target="_blank" rel="noopener" title="Navigate with Google Maps">📍</a></td>
-        <td dir="auto"><b>${esc(s.customer||'—')}</b>${s.urgent?' <span class="pill u">urgent</span>':''}<br><span style="color:var(--muted)">${esc(s.zone||'')}${s.address?' · '+esc(s.address):''}</span></td>
+        <td dir="auto">
+          <span class="kind ${isPickup(s)?'pk':'dl'}" title="${isPickup(s)?'Collect from seller (first mile)':'Deliver to customer'}">${isPickup(s)?'▲ COLLECT':'▼ DELIVER'}</span>
+          <b>${esc(s.customer||'—')}</b>${s.urgent?' <span class="pill u">urgent</span>':''}<br>
+          <span style="color:var(--muted)">${esc(s.zone||'')}${s.address?' · '+esc(s.address):''}</span>
+        </td>
         <td class="r">${s.packages||0}</td>
         <td class="r">${(s.weightKg||0)}</td>
         <td class="r">${fmtEGP(s.cod||0)}</td>
-        <td><span class="sb" style="color:#fff;background:${STATUS_COLOR[s.status]||'#94A3B8'}">${esc(STATUS_LABEL[s.status]||s.status)}</span></td>
+        <td><span class="sb" style="color:#fff;background:${STATUS_COLOR[s.status]||'#94A3B8'}">${esc(statusLabelOf(s))}</span></td>
         <td class="ord">
           <button class="btn sm ordbtn" data-mv="${s.id}|-1" title="Move earlier" ${i===0?'disabled':''}>↑</button>
           <button class="btn sm ordbtn" data-mv="${s.id}|1" title="Move later" ${i===r.ordered.length-1?'disabled':''}>↓</button>
@@ -847,6 +905,11 @@ function renderRoutes(){
         <button class="btn" data-gmap="${idx}" title="Open this van's route in Google Maps">🗺 Google Maps</button>
         <button class="btn go" data-dispatch="${idx}">Dispatch</button>
       </div>
+      ${(r.pickCount)?`<div class="loadbar ${r.overCapacity?'over':''}">
+        <span>🚚 Out: <b>${r.dropCount}</b> deliveries · ${r.dropPkgs} pkgs</span>
+        <span>📦 Back: <b>${r.pickCount}</b> pickups · ${r.pickPkgs} pkgs</span>
+        <span>Peak load: <b>${r.peakPk}</b> / ${r.capPkgs} pkgs${r.peakKg>0?` · ${r.peakKg}/${r.vehicle.capacityKg} kg`:''}${r.overCapacity?' ⚠ OVER CAPACITY':''}</span>
+      </div>`:''}
       <div class="metrics">
         <div class="m"><b class="num">${r.ordered.length}</b><span>Stops</span></div>
         <div class="m"><b class="num">${r.pkgs}</b><span>Packages</span></div>
@@ -1010,8 +1073,9 @@ function addVehicle(){
   const name=el("nvName").value.trim()||("Van "+String.fromCharCode(65+state.vehicles.length));
   const driver=el("nvDriver").value.trim(), rep=el("nvRep").value.trim();
   const kg=parseFloat(el("nvKg").value)||300,st=parseInt(el("nvStops").value)||18;
-  state.vehicles.push({id:vid(),name,driver,rep,capacityKg:kg,maxStops:st,color:PALETTE[state.vehicles.length%PALETTE.length],depot:0});
-  el("nvName").value=el("nvKg").value=el("nvStops").value=el("nvDriver").value=el("nvRep").value=""; state.planned=false; render();
+  const pk=parseInt(el("nvPkgs").value)||200;
+  state.vehicles.push({id:vid(),name,driver,rep,capacityKg:kg,capacityPkgs:pk,maxStops:st,color:PALETTE[state.vehicles.length%PALETTE.length],depot:0});
+  el("nvName").value=el("nvKg").value=el("nvStops").value=el("nvPkgs").value=el("nvDriver").value=el("nvRep").value=""; state.planned=false; render();
 }
 function addStop(){
   const zone=el("sZone").value,z=ZONES[zone]||[state.depot.lat,state.depot.lng],jit=()=>(Math.random()-0.5)*0.012;
@@ -1050,6 +1114,15 @@ function parseMoney(v){ const m=String(v==null?"":v).replace(/,/g,"").replace(/[
 function normPhone(v){ const n=String(v==null?"":v).replace(/\s/g,"").match(/\d{8,}/); if(!n) return ""; let p=n[0]; if(p.length===10&&p[0]==="1") p="0"+p; return p; }
 function seededJitter(seedStr){ let h=0; const s=String(seedStr); for(let i=0;i<s.length;i++){h=(h*31+s.charCodeAt(i))>>>0;} const r1=((h%1000)/1000-0.5), r2=(((h>>>10)%1000)/1000-0.5); return [r1*0.012, r2*0.012]; }
 
+const isPickup = s => s.kind==="pickup";
+// a pickup that's been collected shows as "Picked up", not "Delivered"
+function statusLabelOf(s){
+  if(isPickup(s)){
+    if(s.status==="delivered") return "Picked up";
+    if(s.status==="out") return "Out to collect";
+  }
+  return STATUS_LABEL[s.status]||s.status;
+}
 function lowerKeys(obj){ const o={}; for(const k in obj) o[String(k).trim().toLowerCase()]=obj[k]; return o; }
 function isAWB(rows){
   if(!rows.length) return false;
@@ -1066,9 +1139,12 @@ function ingestAWB(rows){
     const [jla,jln]=seededJitter(String(r["shipment #"]||r["order #"]||Math.random()));
     const phone=normPhone(r["customer phone"]);
     const street=cleanText(r["destination street"]);
+    // marketplace: which seller this order was sold by (new "Sold By" column)
+    const soldBy=cleanText(r["sold by"]||r["seller"]||r["seller name"]||r["vendor"]||"");
     out.push(newShipment({
       id:String(r["shipment #"]||r["order #"]||"").trim()||undefined,
       customer:cleanText(r["customer name"]),
+      soldBy,
       zone,
       address: street + (phone?(" ☎"+phone):""),
       lat:+(blat+jla).toFixed(5), lng:+(blng+jln).toFixed(5),
@@ -1104,7 +1180,59 @@ function ingestStandard(rows){
   });
   return {rows:out, awb:false, filledZone, missing};
 }
-function ingestRows(rows){ return isAWB(rows)? ingestAWB(rows) : ingestStandard(rows); }
+/* ---------- FIRST MILE: seller pickup sheet ---------- */
+function isPickupSheet(rows){
+  if(!rows.length) return false;
+  const keys=Object.keys(rows[0]).map(k=>String(k).toLowerCase());
+  // IMPORTANT: the AWB delivery sheet now carries a "Sold By" column too (marketplace
+  // seller per order). A seller column alone therefore no longer means "first mile".
+  // A sheet is only a pickup sheet if it names a seller AND has none of the AWB's
+  // delivery-only markers (shipment #, courier code, amount to collect, customer name).
+  const hasSeller = keys.some(k=>/sold ?by|seller|vendor|merchant|store|supplier|بائع|تاجر/.test(k));
+  const hasPickup = keys.some(k=>/pick ?up|first ?mile/.test(k));
+  const looksDelivery = keys.some(k=>/shipment #|courier code|amount to collect|customer name|order #/.test(k));
+  if(looksDelivery) return false;          // it's an AWB, even if it names the seller
+  return hasSeller || hasPickup;
+}
+function ingestPickups(rows){
+  const out=[]; let low=0;
+  const get=(r,...names)=>{ for(const n of names){ for(const k in r){ if(k.includes(n) && String(r[k]).trim()!=="") return r[k]; } } return ""; };
+  rows.forEach(raw=>{
+    const r=lowerKeys(raw);
+    const gov = get(r,"governorate","محافظة");
+    const area= get(r,"area","zone","district","منطقة");
+    const [zone,blat,blng]=awbArea(gov,area);
+    if(/bartas/i.test(zone)) low++;
+    const name = cleanText(get(r,"sold by","seller","vendor","merchant","store","supplier","بائع","name"));
+    const id   = String(get(r,"pickup #","pickup no","request","pickup id","seller id","id")||"").trim();
+    const [jla,jln]=seededJitter(String(id||name||Math.random()));
+    const phone=normPhone(get(r,"phone","mobile","تليفون"));
+    const street=cleanText(get(r,"address","street","location","عنوان"));
+    const pkgs = parseInt(get(r,"packages","pkg","qty","pieces","items","total qty","عدد"))||1;
+    out.push(newShipment({
+      id: id||undefined,
+      kind:"pickup",
+      customer: name||"Seller",
+      zone,
+      address: street + (phone?(" ☎"+phone):""),
+      lat:+(blat+jla).toFixed(5), lng:+(blng+jln).toFixed(5),
+      weightKg: parseFloat(get(r,"weight","kg"))||0,
+      packages: pkgs,
+      cod:0,                       // no money at the seller
+      urgent:false
+    }));
+  });
+  return {rows:out, pickup:true, lowConf:low};
+}
+function ingestRows(rows){
+  // The user picked the slot (deliveries vs seller pickups), so we OBEY that instead of
+  // guessing from the columns. Sniffing was fragile: once the AWB gained a "Sold By"
+  // column it looked like a seller sheet, which would have silently turned 66 deliveries
+  // into pickups. An explicit choice can't misfire.
+  if(state.importMode==="pickup") return ingestPickups(rows);
+  if(isAWB(rows)) return ingestAWB(rows);
+  return ingestStandard(rows);
+}
 
 // read a File (xlsx or csv) -> array of row objects, then ingest
 function importFile(file){
@@ -1150,8 +1278,10 @@ function importFile(file){
       if(!res.rows.length){ el("impMsg").innerHTML=`<span style="color:var(--danger)">No rows could be read.</span>`; return; }
       state.shipments=state.shipments.concat(res.rows); state.planned=false; render();
       const codTot=res.rows.reduce((a,s)=>a+(s.cod||0),0);
-      let m=`Imported ${res.rows.length} shipments`+(res.awb?" (MB Logistics AWB)":"")+`. COD ${fmtEGP(codTot)} EGP.`;
-      if(res.awb&&res.lowConf) m+=` ${res.lowConf} in low-confidence area(s).`;
+      let m = res.pickup
+        ? `Imported ${res.rows.length} seller pickups (first mile). ${res.rows.reduce((a,s)=>a+(s.packages||0),0)} packages to collect.`
+        : `Imported ${res.rows.length} shipments`+(res.awb?" (MB Logistics AWB)":"")+`. COD ${fmtEGP(codTot)} EGP.`;
+      if((res.awb||res.pickup)&&res.lowConf) m+=` ${res.lowConf} in low-confidence area(s).`;
       if(!res.awb&&res.filledZone) m+=` ${res.filledZone} placed by zone.`;
       if(!res.awb&&res.missing) m+=` ${res.missing} had no zone/coords (placed at start point 1).`;
       el("impMsg").innerHTML=`<span style="color:var(--ok)">${m}</span>`;
@@ -1231,10 +1361,10 @@ function loadSample(){
 /* export */
 function exportCSV(){
   if(!state.planned){toast("Build routes first.");return;}
-  let csv="vehicle,driver,rep,sequence,shipment_no,customer,zone,address,packages,weight_kg,cod_egp,status,urgent,lat,lng\n";
+  let csv="vehicle,driver,rep,sequence,type,shipment_no,customer,zone,address,packages,weight_kg,cod_egp,status,urgent,lat,lng\n";
   state.routes.filter(r=>r.ordered&&r.ordered.length).forEach(r=>{r.ordered.forEach((s,i)=>{
-    csv+=[q(r.vehicle.name),q(r.vehicle.driver||""),q(r.vehicle.rep||""),i+1,s.id,q(s.customer),q(s.zone),q(s.address),s.packages||0,s.weightKg||0,s.cod||0,s.status,s.urgent?"yes":"no",s.lat.toFixed(5),s.lng.toFixed(5)].join(",")+"\n";});});
-  state.unassigned.forEach(s=>{csv+=["UNASSIGNED","","",">",s.id,q(s.customer),q(s.zone),q(s.address),s.packages||0,s.weightKg||0,s.cod||0,s.status,s.urgent?"yes":"no",s.lat.toFixed(5),s.lng.toFixed(5)].join(",")+"\n";});
+    csv+=[q(r.vehicle.name),q(r.vehicle.driver||""),q(r.vehicle.rep||""),i+1,isPickup(s)?"pickup":"delivery",s.id,q(s.customer),q(s.zone),q(s.address),s.packages||0,s.weightKg||0,s.cod||0,s.status,s.urgent?"yes":"no",s.lat.toFixed(5),s.lng.toFixed(5)].join(",")+"\n";});});
+  state.unassigned.forEach(s=>{csv+=["UNASSIGNED","","",">",isPickup(s)?"pickup":"delivery",s.id,q(s.customer),q(s.zone),q(s.address),s.packages||0,s.weightKg||0,s.cod||0,s.status,s.urgent?"yes":"no",s.lat.toFixed(5),s.lng.toFixed(5)].join(",")+"\n";});
   download("raneen_routes_"+today()+".csv",csv);
 }
 function exportTracking(){
@@ -1254,7 +1384,8 @@ function printSheets(){
   if(!state.planned){toast("Build routes first.");return;}
   const active=state.routes.filter(r=>r.ordered&&r.ordered.length);
   el("runSheets").innerHTML=active.map(r=>{
-    const rows=r.ordered.map((s,i)=>`<tr><td style="width:26px;text-align:center">${i+1}</td>
+    const rows=r.ordered.map((s,i)=>`<tr${isPickup(s)?' style="background:#F0FDF4"':''}><td style="width:26px;text-align:center">${i+1}</td>
+      <td style="font-weight:700;white-space:nowrap">${isPickup(s)?'▲ COLLECT':'▼ DELIVER'}</td>
       <td style="font-family:monospace;white-space:nowrap">${esc(s.id||'—')}</td>
       <td>${esc(s.customer||'—')}${s.urgent?' ⚑':''}</td>
       <td>${esc(s.zone||'')}${s.address?' — '+esc(s.address):''}</td>
@@ -1262,8 +1393,9 @@ function printSheets(){
       <td style="text-align:right">${fmtEGP(s.cod||0)}</td><td style="width:78px"></td><td style="width:90px"></td></tr>`).join("");
     return `<div class="rs-sheet"><h2>${esc(r.vehicle.name)} — run sheet</h2>
       <p class="sub">${today()} · Start: ${esc((r.depot||state.depot).name)} · ${r.ordered.length} stops · ${r.dist.toFixed(1)} km · est ${fmtTime(r.timeMin)} · COD to collect ${fmtEGP(r.cod)} EGP</p>
+      ${r.pickCount?`<p class="sub"><b>Deliver ${r.dropCount}</b> stops (${r.dropPkgs} pkgs) &nbsp;·&nbsp; <b>Collect ${r.pickCount}</b> seller pickups (${r.pickPkgs} pkgs) &nbsp;·&nbsp; Peak load ${r.peakKg}/${r.vehicle.capacityKg} kg</p>`:''}
       <p class="sub"><b>Vehicle:</b> ${esc(r.vehicle.name)} &nbsp;·&nbsp; <b>Driver:</b> ${esc(r.vehicle.driver||'____________')} &nbsp;·&nbsp; <b>Courier / rep:</b> ${esc(r.vehicle.rep||'____________')}</p>
-      <table><thead><tr><th>#</th><th>Shipment #</th><th>Customer</th><th>Location / notes</th><th>Pkg</th><th>Kg</th><th>COD</th><th>Collected</th><th>Signature</th></tr></thead>
+      <table><thead><tr><th>#</th><th>Action</th><th>Shipment #</th><th>Customer / seller</th><th>Location / notes</th><th>Pkg</th><th>Kg</th><th>COD</th><th>Done</th><th>Signature</th></tr></thead>
       <tbody>${rows}</tbody></table></div>`;}).join("");
   window.print();
 }
@@ -1315,7 +1447,22 @@ el("depot2on").addEventListener("change",()=>{
   syncDepotFromInputs(); state.planned=false; render();
 });
 ["setSpeed","setService","setReturn"].forEach(id=>el(id).addEventListener("change",()=>{syncSettingsFromInputs();if(state.planned)buildRoutes();}));
-el("btnImport").onclick=()=>{el("impBack").classList.add("on");el("impMsg").textContent="";el("impFileName").textContent="";};
+function openImport(mode){
+  state.importMode = mode;                       // "delivery" | "pickup" — chosen by the user, never guessed
+  const pk = mode==="pickup";
+  el("impTitle").textContent = pk ? "Import seller pickups (first mile)" : "Import deliveries (last mile)";
+  el("impHelp").innerHTML = pk
+    ? `Upload the <b>merchant / seller orders</b> sheet — the stops the van collects <b>from sellers</b> and brings back to the warehouse.
+       Columns read: <b>Sold By</b> (or Seller / Store), Area, Address, Packages, Phone, Pickup #.
+       No COD is collected at a seller.`
+    : `Upload the <b>AWB delivery sheet</b> — the parcels the van delivers <b>to customers</b>.
+       The MB Logistics export is recognised automatically (Shipment #, Destination Area, Amount To Collect, …).
+       A simple sheet with <b>order_id, customer, zone, address, packages, cod_egp</b> also works.`;
+  el("impBack").classList.add("on");
+  el("impMsg").textContent=""; el("impFileName").textContent="";
+}
+el("btnImport").onclick   = ()=>openImport("delivery");
+el("btnImportPk").onclick = ()=>openImport("pickup");
 el("impCancel").onclick=()=>el("impBack").classList.remove("on");
 el("impBack").onclick=e=>{if(e.target===el("impBack"))el("impBack").classList.remove("on");};
 el("impPick").onclick=()=>el("impFile").click();
