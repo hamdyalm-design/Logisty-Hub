@@ -104,6 +104,8 @@
   .pill.u{background:var(--danger-soft); color:var(--danger)}
   .reassign,.stsel{font-size:11px; padding:3px 5px; width:auto; min-width:104px}
   td.awb{font-family:var(--mono); font-size:11.5px; color:var(--ink-2); white-space:nowrap}
+  .navbtn{text-decoration:none; padding:3px 8px; line-height:1.2}
+  .navbtn:hover{background:var(--accent-soft); border-color:var(--accent)}
   td.ord{white-space:nowrap}
   .ordbtn{padding:2px 7px; font-size:12px; line-height:1.1; min-width:26px}
   .ordbtn[disabled]{opacity:.3; cursor:default}
@@ -205,11 +207,11 @@
   <div class="tabs">
     <button class="tab on" data-tab="plan" id="tabPlan">Plan routes</button>
     <button class="tab" data-tab="track" id="tabTrack">Track deliveries <span class="b" id="tabTrackB">0</span></button>
+    <button class="tab" data-tab="order" id="tabOrder">Track an order</button>
   </div>
   <div class="stat"><b id="hStops" class="num">0</b><span>Stops</span></div>
   <div class="stat"><b id="hDel" class="num">0</b><span>Delivered</span></div>
   <div class="stat"><b id="hRate" class="num">—</b><span>Success</span></div>
-  <button class="btn ghost" id="btnSample">Load Cairo sample</button>
   <button class="btn primary" id="btnBuild">Build routes</button>
 </header>
 
@@ -310,7 +312,7 @@
       <section class="card">
         <h2>Route map <span class="count" id="mapCount">0 stops</span></h2>
         <div class="mapwrap" id="mapWrap"><div class="map-empty"><div><div class="big">No stops yet</div>
-      Add stops on the left, or load the Cairo sample, then press <b>Build routes</b>.</div></div></div>
+      Import your AWB sheet or add stops on the left, then press <b>Build routes</b>.</div></div></div>
         <div class="legend" id="legend" style="display:none"></div>
       </section>
 
@@ -348,20 +350,11 @@
     <div class="kpis" id="kpis"></div>
 
     <section class="card" style="margin-top:16px">
-      <h2>Track an order</h2>
-      <div class="body">
-        <div class="track-find">
-          <div class="grow">
-            <label class="fld" for="trkId">Order ID</label>
-            <input id="trkId" placeholder="e.g. S1003" dir="auto">
-          </div>
-          <button class="btn primary" id="btnTrack">Track</button>
-          <div style="min-width:160px">
-            <label class="fld" for="trkVeh">Filter board by vehicle</label>
-            <select id="trkVeh"><option value="">All vehicles</option></select>
-          </div>
+      <div class="body" style="padding-bottom:0">
+        <div style="max-width:220px">
+          <label class="fld" for="trkVeh">Filter board by vehicle</label>
+          <select id="trkVeh"><option value="">All vehicles</option></select>
         </div>
-        <div id="trackResult" class="timeline"></div>
       </div>
     </section>
 
@@ -372,6 +365,23 @@
       </h2>
       <div class="body">
         <div class="board" id="board"></div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ============ TRACK AN ORDER PANEL ============ -->
+  <div class="panel" id="panelOrder">
+    <section class="card">
+      <h2>Track an order</h2>
+      <div class="body">
+        <div class="track-find">
+          <div class="grow">
+            <label class="fld" for="trkId">Shipment / order number</label>
+            <input id="trkId" placeholder="e.g. 2009855722" dir="auto">
+          </div>
+          <button class="btn primary" id="btnTrack">Track</button>
+        </div>
+        <div id="trackResult" class="timeline"></div>
       </div>
     </section>
   </div>
@@ -624,17 +634,68 @@ function autoRoute(vehId){
   toast((r?r.vehicle.name:"Route")+" re-optimised automatically.");
 }
 
+/* ---------- Google Maps links ----------
+   Our lat/lng are approximate district centroids, so for navigation we prefer the
+   real street address text from the AWB when we have one. Google geocodes it far
+   more accurately than our coordinate guess. Falls back to coords otherwise.      */
+function navQuery(s){
+  const street=String(s.address||"").split("☎")[0].trim();   // drop the phone we appended
+  if(street && street.length>4){
+    const parts=[street, s.zone, "Egypt"].filter(Boolean).join(", ");
+    return encodeURIComponent(parts);
+  }
+  return encodeURIComponent(`${s.lat},${s.lng}`);
+}
+// one stop -> turn-by-turn directions
+function gmapsStop(s){
+  return `https://www.google.com/maps/dir/?api=1&destination=${navQuery(s)}&travelmode=driving`;
+}
+// whole route -> Google's URL API allows 9 waypoints (origin + 9 + destination),
+// so long routes are split into legs the driver opens one after the other.
+function gmapsLegs(r){
+  const dep=r.depot||state.depot;
+  const stops=(r.ordered||[]).filter(s=>!isClosed(s.status));
+  if(!stops.length) return [];
+  const legs=[]; const MAX=10;                 // stops per leg
+  for(let i=0;i<stops.length;i+=MAX){
+    const chunk=stops.slice(i,i+MAX);
+    const origin = i===0 ? encodeURIComponent(`${dep.lat},${dep.lng}`) : navQuery(stops[i-1]);
+    const dest   = navQuery(chunk[chunk.length-1]);
+    const mid    = chunk.slice(0,-1).map(navQuery).join("%7C");   // %7C = |
+    let url=`https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${dest}&travelmode=driving`;
+    if(mid) url+=`&waypoints=${mid}`;
+    legs.push(url);
+  }
+  return legs;
+}
+function openRouteInMaps(idx){
+  const r=state.routes[idx]; if(!r) return;
+  const legs=gmapsLegs(r);
+  if(!legs.length){ toast("No open stops on this route."); return; }
+  if(legs.length===1){ window.open(legs[0],"_blank"); return; }
+  // too long for one Google link -> let the driver open each leg in order
+  showModal(`${r.vehicle.name} — open in Google Maps`,
+    `<p class="hint" style="margin-top:0">Google Maps takes up to 10 stops per link, so this
+      route is split into ${legs.length} legs. Open them in order.</p>
+     ${legs.map((u,i)=>`<a class="btn" style="display:flex;margin-bottom:8px;text-decoration:none"
+        href="${u}" target="_blank" rel="noopener">▶ Open leg ${i+1} of ${legs.length}</a>`).join("")}`,
+    "Done", ()=>closeModal());
+}
+
 /* ---------- render ---------- */
 function render(){
   renderHeader(); renderTabs();
   if(state.tab==="plan"){ renderVehicles(); renderMap(); renderRoutes(); renderShipTable(); }
+  else if(state.tab==="order"){ renderTrackResult(); }
   else { renderTracking(); }
 }
 function renderTabs(){
   el("tabPlan").classList.toggle("on", state.tab==="plan");
   el("tabTrack").classList.toggle("on", state.tab==="track");
+  el("tabOrder").classList.toggle("on", state.tab==="order");
   el("panelPlan").classList.toggle("on", state.tab==="plan");
   el("panelTrack").classList.toggle("on", state.tab==="track");
+  el("panelOrder").classList.toggle("on", state.tab==="order");
   el("tabTrackB").textContent=state.shipments.filter(s=>s.status==="out").length;
 }
 function kpiData(){
@@ -706,7 +767,7 @@ function renderMap(){
   const wrap=el("mapWrap"),legend=el("legend");
   if(!state.shipments.length){
     wrap.innerHTML=`<div class="map-empty"><div><div class="big">No stops yet</div>
-      Add stops on the left, or load the Cairo sample, then press <b>Build routes</b>.</div></div>`;
+      Import your AWB sheet or add stops on the left, then press <b>Build routes</b>.</div></div>`;
     legend.style.display="none"; return;
   }
   const W=900,H=520,pad=40,deps=enabledDepots(),pts=[...deps,...state.shipments],proj=projector(pts,W,H,pad);
@@ -766,6 +827,7 @@ function renderRoutes(){
       <tr class="${s.urgent?'urgent':''} ${s.status==='delivered'?'done':''}">
         <td><span class="seq" style="background:${s.status==='delivered'?'#178A50':FAILED.includes(s.status)?'#D7263D':r.vehicle.color}">${s.status==='delivered'?'✓':FAILED.includes(s.status)?'✕':(i+1)}</span></td>
         <td class="awb">${esc(s.id||'—')}</td>
+        <td><a class="btn sm navbtn" href="${gmapsStop(s)}" target="_blank" rel="noopener" title="Navigate with Google Maps">📍</a></td>
         <td dir="auto"><b>${esc(s.customer||'—')}</b>${s.urgent?' <span class="pill u">urgent</span>':''}<br><span style="color:var(--muted)">${esc(s.zone||'')}${s.address?' · '+esc(s.address):''}</span></td>
         <td class="r">${s.packages||0}</td>
         <td class="r">${(s.weightKg||0)}</td>
@@ -782,6 +844,7 @@ function renderRoutes(){
         <span class="rname">${esc(r.vehicle.name)}${(r.vehicle.driver||r.vehicle.rep)?`<small class="crew">${[r.vehicle.driver&&('🚚 '+esc(r.vehicle.driver)), r.vehicle.rep&&('👤 '+esc(r.vehicle.rep))].filter(Boolean).join(' · ')}</small>`:''}</span>
         <span class="rtag">${r.ordered.length} stops · ${r.dist.toFixed(1)} km · ${fmtTime(r.timeMin)}${dlv||fl?` · ✓${dlv} ✕${fl}`:''}</span>
         ${r.manual?`<span class="manual-tag">✎ Manual order</span><button class="btn" data-auto="${r.vehicle.id}" title="Let the optimiser re-sequence this van">Auto-optimise</button>`:''}
+        <button class="btn" data-gmap="${idx}" title="Open this van's route in Google Maps">🗺 Google Maps</button>
         <button class="btn go" data-dispatch="${idx}">Dispatch</button>
       </div>
       <div class="metrics">
@@ -792,11 +855,12 @@ function renderRoutes(){
         <div class="m"><b class="num">${fmtTime(r.timeMin)}</b><span>Est. time</span></div>
         <div class="m"><b class="num">${fmtEGP(r.cod)}</b><span>COD EGP</span></div>
       </div>
-      <table><thead><tr><th>#</th><th>Shipment #</th><th>Customer / location</th><th class="r">Pkg</th><th class="r">Kg</th><th class="r">COD</th><th>Status</th><th>Order</th><th>Move to</th></tr></thead>
+      <table><thead><tr><th>#</th><th>Shipment #</th><th>Go</th><th>Customer / location</th><th class="r">Pkg</th><th class="r">Kg</th><th class="r">COD</th><th>Status</th><th>Order</th><th>Move to</th></tr></thead>
         <tbody>${rows}</tbody></table>
     </div>`;
   }).join("");
   box.querySelectorAll("[data-dispatch]").forEach(b=>b.onclick=e=>{e.stopPropagation();dispatchRoute(+b.dataset.dispatch);});
+  box.querySelectorAll("[data-gmap]").forEach(b=>b.onclick=e=>{e.stopPropagation();openRouteInMaps(+b.dataset.gmap);});
   box.querySelectorAll("[data-mv]").forEach(b=>b.onclick=e=>{ e.stopPropagation();
     const [id,d]=b.dataset.mv.split("|"); moveStop(id, parseInt(d,10)); });
   box.querySelectorAll("[data-auto]").forEach(b=>b.onclick=e=>{ e.stopPropagation(); autoRoute(b.dataset.auto); });
@@ -861,7 +925,8 @@ function renderBoard(){
   board.querySelectorAll("[data-open]").forEach(c=>c.onclick=e=>{
     // ignore clicks on the controls inside the card (buttons + status dropdown)
     if(e.target.closest(".acts") || e.target.closest("select") || e.target.tagName==="SELECT" || e.target.tagName==="OPTION") return;
-    state.trackedId=c.dataset.open; el("trkId").value=c.dataset.open; renderTrackResult();
+    state.trackedId=c.dataset.open; el("trkId").value=c.dataset.open;
+    state.tab="order"; render();                       // jump to the Track an order tab
     window.scrollTo({top:0,behavior:'smooth'});
   });
   board.querySelectorAll("select.stsel").forEach(sel=>{
@@ -1230,8 +1295,8 @@ let _t; function toast(msg){let t=el("_toast");if(!t){t=document.createElement("
 function fillZoneSelect(){el("sZone").innerHTML=Object.keys(ZONES).map(z=>`<option>${z}</option>`).join("");}
 el("tabPlan").onclick=()=>{state.tab="plan";render();};
 el("tabTrack").onclick=()=>{state.tab="track";render();};
+el("tabOrder").onclick=()=>{state.tab="order";render();};
 el("btnBuild").onclick=buildRoutes;
-el("btnSample").onclick=loadSample;
 el("btnAddVeh").onclick=addVehicle;
 el("btnAddStop").onclick=addStop;
 el("btnClear").onclick=()=>{if(state.shipments.length&&confirm("Remove all stops?")){state.shipments=[];_sid=1;state.planned=false;render();}};
