@@ -108,6 +108,23 @@
     border-radius:4px; margin-right:5px; vertical-align:1px}
   .kind.dl{background:var(--accent-soft); color:var(--accent-ink)}
   .kind.pk{background:#DCFCE7; color:#166534}
+  .scanbar{display:flex; gap:10px; align-items:flex-end; flex-wrap:wrap}
+  .scanbar .grow{flex:1; min-width:240px}
+  input.scanin{font-family:var(--mono); font-size:20px; padding:14px 14px; letter-spacing:.04em;
+    border:2px solid var(--accent); background:#fff}
+  input.scanin:focus{outline:none; box-shadow:0 0 0 4px var(--accent-soft)}
+  .scanstats{display:grid; grid-template-columns:repeat(4,1fr); gap:10px; margin:14px 0}
+  .sst{background:var(--surface-2); border:1px solid var(--line); border-radius:8px; padding:10px 12px;
+    display:flex; flex-direction:column; gap:2px}
+  .sst b{font-size:20px; font-weight:800} .sst span{font-size:11px; color:var(--muted)}
+  .sst.ok{background:var(--ok-soft); border-color:#B7E4C8} .sst.ok b{color:#0B5C36}
+  .sst.bad{background:var(--danger-soft); border-color:#F5C2C7} .sst.bad b{color:#8E1B2B}
+  tr.badrow{background:var(--danger-soft)}
+  @media (max-width:640px){ .scanstats{grid-template-columns:repeat(2,1fr)} }
+  tr.needloc{background:var(--danger-soft)}
+  tr.needloc td:first-child b::after{content:" ⚠ no address"; font-size:10px; font-weight:700; color:#8E1B2B}
+  #sellerBook select.szone{min-width:130px; font-size:11.5px; padding:3px 5px}
+  #sellerBook input.saddr{font-size:11.5px; padding:3px 6px}
   .loadbar{display:flex; flex-wrap:wrap; gap:14px; padding:8px 12px; font-size:11.5px;
     background:#F0FDF4; border-bottom:1px solid var(--line); color:#14532D}
   .loadbar.over{background:var(--danger-soft); color:#8E1B2B; font-weight:700}
@@ -215,6 +232,7 @@
     <button class="tab on" data-tab="plan" id="tabPlan">Plan routes</button>
     <button class="tab" data-tab="track" id="tabTrack">Track deliveries <span class="b" id="tabTrackB">0</span></button>
     <button class="tab" data-tab="order" id="tabOrder">Track an order</button>
+    <button class="tab" data-tab="scan" id="tabScan">📷 Scan <span class="b" id="tabScanB">0</span></button>
   </div>
   <div class="stat"><b id="hStops" class="num">0</b><span>Stops</span></div>
   <div class="stat"><b id="hDel" class="num">0</b><span>Delivered</span></div>
@@ -340,6 +358,23 @@
         </div>
       </section>
 
+      <section class="card" id="sellerCard" style="display:none">
+        <h2>Seller pickup locations <span class="count" id="sellerCount">0</span></h2>
+        <div class="body tight">
+          <p class="hint" style="margin-top:0">
+            The shipments export tells us <b>which</b> sellers have parcels, but not <b>where</b> they are —
+            the address columns in that file are the customer's. Set each seller's area once and it's
+            remembered for next time.
+          </p>
+          <div id="sellerBook"></div>
+          <div class="toolbar" style="margin-top:10px">
+            <button class="btn sm" id="btnSellerExport">Export seller book</button>
+            <input type="file" id="sellerFile" accept=".csv" style="display:none">
+            <button class="btn sm" id="btnSellerImport">Import seller book</button>
+          </div>
+        </div>
+      </section>
+
       <section class="card">
         <h2>All stops <span class="count" id="shipCount">0</span></h2>
         <div class="body tight">
@@ -379,6 +414,38 @@
   </div>
 
   <!-- ============ TRACK AN ORDER PANEL ============ -->
+  <!-- ============ SCAN STATION ============ -->
+  <div class="panel" id="panelScan">
+    <section class="card">
+      <h2>Scan station <span class="count" id="scanCount">0 scanned</span></h2>
+      <div class="body">
+        <div class="scanbar">
+          <div class="grow">
+            <label class="fld" for="scanIn">Scan barcode</label>
+            <input id="scanIn" class="scanin" placeholder="Scan a parcel — or type a number and press Enter"
+                   autocomplete="off" dir="auto">
+          </div>
+          <div style="min-width:210px">
+            <label class="fld" for="scanStatus">Set status to</label>
+            <select id="scanStatus"></select>
+          </div>
+          <button class="btn primary" id="btnScanApply">Update all</button>
+        </div>
+
+        <div class="scanstats" id="scanStats"></div>
+        <div id="scanList"></div>
+
+        <div class="toolbar" style="margin-top:12px">
+          <label class="chk" style="margin-right:auto">
+            <input type="checkbox" id="scanBeep" checked> Sound on scan
+          </label>
+          <button class="btn sm" id="btnScanUndo">Undo last</button>
+          <button class="btn sm danger" id="btnScanClear">Clear list</button>
+        </div>
+      </div>
+    </section>
+  </div>
+
   <div class="panel" id="panelOrder">
     <section class="card">
       <h2>Track an order</h2>
@@ -498,7 +565,9 @@ const state = {
   routes:[], unassigned:[], planned:false,
   tab:"plan", trackedId:null, boardVeh:"",
   manualRoutes:{},  // { vehicleId: true } -> keep dispatcher's hand-made order
-  importMode:"delivery"   // which upload slot the user opened: "delivery" | "pickup"
+  importMode:"delivery",  // which upload slot the user opened: "delivery" | "pickup"
+  sellerBook:{},          // { sellerName: {zone,lat,lng,address} } — learned once, reused
+  scan:{items:[], flash:null}   // scan station batch
 };
 
 /* ---------- status helpers ---------- */
@@ -506,7 +575,8 @@ function newShipment(o){
   const s=Object.assign({id:sid(), customer:"", zone:"", address:"", lat:state.depot.lat, lng:state.depot.lng,
     weightKg:0, packages:1, cod:0, urgent:false, pin:null, vehicleId:null, vehicleName:"", color:"#94A3B8",
     kind:"delivery",              // "delivery" = last mile to customer | "pickup" = first mile from seller
-    soldBy:"",                    // marketplace seller this order was sold by ("Sold By" column)
+    soldBy:"",                    // marketplace seller ("Marketplace Seller" / "Sold By" column)
+    parcels:0, needsLocation:false,   // pickup stops: how many parcels, and is its address known?
     status:"pending", failReason:"", history:[]}, o);
   s.history.push({status:"pending", ts:Date.now(), note:"Created"});
   return s;
@@ -569,7 +639,9 @@ function assignAndOptimize(){
   const byId=Object.fromEntries(routes.map(r=>[r.vehicle.id,r]));
   const unassigned=[];
   // terminal stops (delivered/failed) are not re-routed
-  const routable=state.shipments.filter(s=>!isClosed(s.status));
+  // a seller whose address we don't know yet can't be routed — it would just pile up
+  // on top of the depot and quietly corrupt the plan. Hold it out until it's placed.
+  const routable=state.shipments.filter(s=>!isClosed(s.status) && !(isPickup(s)&&s.needsLocation));
   const free=[];
   routable.forEach(s=>{ if(s.pin&&byId[s.pin]){const r=byId[s.pin]; r.stops.push(s); r.weight+=s.weightKg||0;} else free.push(s); });
 
@@ -734,20 +806,280 @@ function openRouteInMaps(idx){
     "Done", ()=>closeModal());
 }
 
+/* ---------- Seller Book: where each marketplace seller is ----------
+   The shipments export has no seller address, so the dispatcher teaches it once.
+   Saved in the browser so it survives a refresh and the next import.            */
+function loadSellerBook(){
+  try{ const raw=localStorage.getItem("logisty_sellerBook");
+       if(raw) state.sellerBook=JSON.parse(raw)||{}; }catch(e){ state.sellerBook={}; }
+}
+function saveSellerBook(){
+  try{ localStorage.setItem("logisty_sellerBook", JSON.stringify(state.sellerBook)); }catch(e){}
+}
+function setSellerZone(seller, zoneName){
+  if(!zoneName){ delete state.sellerBook[seller]; }
+  else if(zoneName==="__custom"){
+    const prev=state.sellerBook[seller]||{};
+    const val=prompt(`Exact pickup coordinates for "${seller}"\n\nPaste "lat, lng" — you can copy this straight from Google Maps\n(right-click the spot → click the numbers to copy).`,
+      prev.lat? `${prev.lat}, ${prev.lng}` : "30.0566, 31.3300");
+    if(!val) { render(); return; }
+    const m=String(val).split(",").map(x=>parseFloat(x.trim()));
+    if(m.length<2 || isNaN(m[0]) || isNaN(m[1])){ toast("Couldn't read those coordinates."); render(); return; }
+    state.sellerBook[seller]={zone:"Custom", lat:m[0], lng:m[1], address:prev.address||""};
+  }
+  else{
+    const A=allAreas(); const z=A[zoneName]; if(!z) return;
+    const prev=state.sellerBook[seller]||{};
+    state.sellerBook[seller]={zone:zoneName, lat:z[0], lng:z[1], address:prev.address||""};
+  }
+  saveSellerBook(); applySellerBook(); state.planned=false; render();
+}
+function setSellerAddress(seller, addr){
+  const b=state.sellerBook[seller]; if(!b) return;
+  b.address=addr; saveSellerBook();
+}
+// push book locations onto the pickup stops already loaded
+function applySellerBook(){
+  state.shipments.filter(isPickup).forEach(s=>{
+    const b=state.sellerBook[s.soldBy||s.customer];
+    if(b){
+      const [jla,jln]=seededJitter(s.soldBy||s.customer);
+      s.zone=b.zone; s.address=b.address||"";
+      s.lat=+(b.lat+jla).toFixed(5); s.lng=+(b.lng+jln).toFixed(5);
+      s.needsLocation=false;
+    } else {
+      s.zone=""; s.lat=state.depot.lat; s.lng=state.depot.lng; s.needsLocation=true;
+    }
+  });
+}
+// every area a seller can sit in: the planning zones + all districts the AWB map knows.
+// Without this the dropdown was missing 18 real districts and sellers there were unplaceable.
+function allAreas(){
+  const m={};
+  Object.keys(ZONES).forEach(z=>{ m[z]=ZONES[z]; });
+  AWB_AREAS.forEach(([,label,lat,lng])=>{ if(!m[label]) m[label]=[lat,lng]; });
+  return m;
+}
+function renderSellerBook(){
+  const card=el("sellerCard"), box=el("sellerBook");
+  const picks=state.shipments.filter(isPickup);
+  if(!picks.length){ card.style.display="none"; return; }
+  card.style.display="";
+  const need=picks.filter(s=>s.needsLocation).length;
+  el("sellerCount").textContent = need ? `${need} need an area` : `${picks.length} placed`;
+  const AREAS=allAreas();
+  const zoneOpts=name=>['<option value="">— pick area —</option>']
+    .concat(Object.keys(AREAS).sort().map(z=>`<option value="${esc(z)}" ${z===name?'selected':''}>${esc(z)}</option>`))
+    .concat([`<option value="__custom" ${name==="Custom"?'selected':''}>📍 Exact coordinates…</option>`]).join("");
+  box.innerHTML=`<table class="tbl"><thead><tr>
+      <th>Seller</th><th class="r">Parcels</th><th class="r">Pkgs</th><th class="r">Kg</th><th>Pickup area</th><th>Address (optional)</th>
+    </tr></thead><tbody>${
+    picks.map(s=>{
+      const key=s.soldBy||s.customer;
+      const b=state.sellerBook[key];
+      return `<tr class="${s.needsLocation?'needloc':''}">
+        <td dir="auto"><b>${esc(key)}</b></td>
+        <td class="r">${s.parcels||0}</td>
+        <td class="r">${s.packages||0}</td>
+        <td class="r">${s.weightKg||0}</td>
+        <td><select class="szone" data-s="${esc(key)}">${zoneOpts(b?b.zone:"")}</select></td>
+        <td><input class="saddr" data-s="${esc(key)}" dir="auto" placeholder="street / landmark" value="${esc(b?(b.address||""):"")}" ${b?'':'disabled'}></td>
+      </tr>`;}).join("")
+  }</tbody></table>`;
+  box.querySelectorAll("select.szone").forEach(sel=>sel.onchange=()=>setSellerZone(sel.dataset.s, sel.value));
+  box.querySelectorAll("input.saddr").forEach(inp=>inp.onchange=()=>setSellerAddress(inp.dataset.s, inp.value.trim()));
+}
+function exportSellerBook(){
+  const keys=Object.keys(state.sellerBook);
+  if(!keys.length){ toast("Seller book is empty."); return; }
+  let csv="seller,zone,lat,lng,address\n";
+  keys.forEach(k=>{ const b=state.sellerBook[k];
+    csv+=[q(k),q(b.zone),b.lat,b.lng,q(b.address||"")].join(",")+"\n"; });
+  download("logisty_seller_book.csv",csv);
+}
+function importSellerBook(file){
+  const rd=new FileReader();
+  rd.onload=e=>{
+    const res=parseCSVRaw(e.target.result);
+    let n=0;
+    res.forEach(r=>{
+      const name=(r.seller||r.name||"").trim(); if(!name) return;
+      const zone=(r.zone||"").trim();
+      const lat=parseFloat(r.lat), lng=parseFloat(r.lng);
+      const A=allAreas();
+      if(zone && A[zone]) state.sellerBook[name]={zone,lat:A[zone][0],lng:A[zone][1],address:(r.address||"").trim()};
+      else if(!isNaN(lat)&&!isNaN(lng)) state.sellerBook[name]={zone:zone||"Custom",lat,lng,address:(r.address||"").trim()};
+      else return;
+      n++;
+    });
+    saveSellerBook(); applySellerBook(); state.planned=false; render();
+    toast(`Seller book: ${n} location(s) loaded.`);
+  };
+  rd.readAsText(file);
+}
+// tiny CSV -> plain objects (the seller-book file, not shipments)
+function parseCSVRaw(text){
+  const t=String(text||"").replace(/\r\n?/g,"\n").trim();
+  if(!t) return [];
+  const recs=[]; let field="", row=[], inQ=false;
+  for(let i=0;i<t.length;i++){
+    const c=t[i];
+    if(inQ){ if(c==='"'){ if(t[i+1]==='"'){field+='"';i++;} else inQ=false; } else field+=c; }
+    else if(c==='"') inQ=true;
+    else if(c===','){ row.push(field); field=""; }
+    else if(c==='\n'){ row.push(field); recs.push(row); row=[]; field=""; }
+    else field+=c;
+  }
+  row.push(field); recs.push(row);
+  const clean=recs.filter(r=>r.some(x=>(x||"").trim()!==""));
+  if(clean.length<2) return [];
+  const head=clean[0].map(h=>String(h||"").trim().toLowerCase());
+  return clean.slice(1).map(r=>{
+    const o={}; head.forEach((h,i)=>o[h]=(r[i]==null?"":String(r[i]).trim())); return o;
+  });
+}
+
+/* ---------- SCAN STATION ----------
+   A handheld scanner behaves like a keyboard: it types the barcode very fast and then
+   sends Enter. So we just listen for Enter on a permanently-focused input. Nothing to
+   install, works with any USB/Bluetooth scanner, and typing a number by hand also works.  */
+function normCode(x){ return String(x||"").trim().replace(/^0+/,"").replace(/[^0-9A-Za-z]/g,"").toLowerCase(); }
+
+function findByCode(code){
+  const c=normCode(code);
+  if(!c) return null;
+  // exact id first, then a normalised compare (barcodes often carry prefixes / leading zeros)
+  let hit=state.shipments.find(s=>String(s.id)===String(code).trim());
+  if(hit) return hit;
+  hit=state.shipments.find(s=>normCode(s.id)===c);
+  if(hit) return hit;
+  // last resort: the code contains the id, or the id contains the code (min 6 chars, avoids false hits)
+  if(c.length>=6) hit=state.shipments.find(s=>{ const n=normCode(s.id); return n.length>=6 && (c.endsWith(n)||n.endsWith(c)); });
+  return hit||null;
+}
+
+function beep(ok){
+  if(!el("scanBeep") || !el("scanBeep").checked) return;
+  try{
+    const Ctx=window.AudioContext||window.webkitAudioContext; if(!Ctx) return;
+    state._actx = state._actx || new Ctx();
+    const ctx=state._actx, o=ctx.createOscillator(), g=ctx.createGain();
+    o.connect(g); g.connect(ctx.destination);
+    o.frequency.value = ok?880:220;          // high = matched, low buzz = not found
+    g.gain.setValueAtTime(0.08, ctx.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+(ok?0.09:0.28));
+    o.start(); o.stop(ctx.currentTime+(ok?0.1:0.3));
+  }catch(e){}
+}
+
+function onScan(raw){
+  const code=String(raw||"").trim();
+  if(!code) return;
+  const dup=state.scan.items.find(it=>it.code===code);
+  if(dup){ dup.dupes=(dup.dupes||0)+1; beep(false); state.scan.flash={code,type:"dup"}; renderScan(); return; }
+  const s=findByCode(code);
+  state.scan.items.unshift({ code, id:s?s.id:null, ok:!!s, dupes:0 });
+  beep(!!s);
+  state.scan.flash={code, type:s?"ok":"bad"};
+  renderScan();
+}
+
+function renderScan(){
+  const box=el("scanList"), stats=el("scanStats");
+  const items=state.scan.items;
+  const matched=items.filter(i=>i.ok);
+  const unknown=items.filter(i=>!i.ok);
+  el("scanCount").textContent=`${items.length} scanned`;
+  el("tabScanB").textContent=items.length;
+
+  const pkgs=matched.reduce((a,i)=>{const s=state.shipments.find(x=>x.id===i.id); return a+((s&&s.packages)||0);},0);
+  const cod =matched.reduce((a,i)=>{const s=state.shipments.find(x=>x.id===i.id); return a+((s&&s.cod)||0);},0);
+
+  stats.innerHTML=`
+    <div class="sst ok"><b class="num">${matched.length}</b><span>Matched</span></div>
+    <div class="sst bad"><b class="num">${unknown.length}</b><span>Not found</span></div>
+    <div class="sst"><b class="num">${pkgs}</b><span>Packages</span></div>
+    <div class="sst"><b class="num">${fmtEGP(cod)}</b><span>COD (EGP)</span></div>`;
+
+  if(!items.length){
+    box.innerHTML=`<div class="empty">Nothing scanned yet. Point the scanner at a parcel — the box above stays focused.</div>`;
+    return;
+  }
+  box.innerHTML=`<table class="tbl"><thead><tr>
+      <th>Scanned</th><th>Shipment</th><th>Customer</th><th>Zone</th>
+      <th class="r">Pkg</th><th class="r">COD</th><th>Current status</th><th></th>
+    </tr></thead><tbody>${items.map(it=>{
+      const s=it.ok?state.shipments.find(x=>x.id===it.id):null;
+      if(!s) return `<tr class="badrow">
+        <td class="awb">${esc(it.code)}</td>
+        <td colspan="6" style="color:var(--danger);font-weight:700">✕ Not in today's list${it.dupes?` · scanned ${it.dupes+1}×`:''}</td>
+        <td><button class="btn sm danger" data-rm="${esc(it.code)}">✕</button></td></tr>`;
+      return `<tr>
+        <td class="awb">${esc(it.code)}${it.dupes?`<br><span style="color:var(--muted);font-size:10px">${it.dupes+1}× scanned</span>`:''}</td>
+        <td class="awb">${esc(s.id)}</td>
+        <td dir="auto"><b>${esc(s.customer||'—')}</b></td>
+        <td dir="auto">${esc(s.zone||'—')}</td>
+        <td class="r">${s.packages||0}</td>
+        <td class="r">${fmtEGP(s.cod||0)}</td>
+        <td><span class="sb" style="color:#fff;background:${STATUS_COLOR[s.status]||'#94A3B8'}">${esc(statusLabelOf(s))}</span></td>
+        <td><button class="btn sm danger" data-rm="${esc(it.code)}">✕</button></td></tr>`;
+    }).join("")}</tbody></table>`;
+
+  box.querySelectorAll("[data-rm]").forEach(b=>b.onclick=()=>{
+    state.scan.items=state.scan.items.filter(i=>i.code!==b.dataset.rm);
+    renderScan(); focusScan();
+  });
+}
+
+function applyScan(){
+  const st=el("scanStatus").value;
+  const matched=state.scan.items.filter(i=>i.ok);
+  if(!matched.length){ toast("Nothing matched to update."); return; }
+
+  const run=(reason)=>{
+    matched.forEach(i=>setStatusQuiet(i.id, st, reason));
+    const n=matched.length;
+    state.scan.items=[];
+    state.planned=false;
+    render();
+    toast(`${n} shipment(s) set to ${STATUS_LABEL[st]}.`);
+    focusScan();
+  };
+  // a bulk "not delivered" still needs a reason, asked once for the whole batch
+  if(st==="notdelivered"){
+    openFailBulk(matched.length, run);
+  } else run();
+}
+// like setStatus but without re-rendering per item (we render once at the end)
+function setStatusQuiet(id, status, reason){
+  const s=state.shipments.find(x=>x.id===id); if(!s) return;
+  if(s.status===status) return;
+  s.status=status;
+  s.failReason=FAILED.includes(status)?(reason||s.failReason||FAIL_REASONS[0]):"";
+  s.history.push({status, ts:Date.now(), reason:reason||"", note:"Scanned"});
+}
+function focusScan(){
+  const i=el("scanIn");
+  if(i && state.tab==="scan"){ i.focus(); i.select(); }
+}
+
 /* ---------- render ---------- */
 function render(){
   renderHeader(); renderTabs();
-  if(state.tab==="plan"){ renderVehicles(); renderMap(); renderRoutes(); renderShipTable(); }
+  if(state.tab==="plan"){ renderVehicles(); renderSellerBook(); renderMap(); renderRoutes(); renderShipTable(); }
   else if(state.tab==="order"){ renderTrackResult(); }
+  else if(state.tab==="scan"){ renderScan(); }
   else { renderTracking(); }
 }
 function renderTabs(){
   el("tabPlan").classList.toggle("on", state.tab==="plan");
   el("tabTrack").classList.toggle("on", state.tab==="track");
   el("tabOrder").classList.toggle("on", state.tab==="order");
+  el("tabScan").classList.toggle("on", state.tab==="scan");
   el("panelPlan").classList.toggle("on", state.tab==="plan");
   el("panelTrack").classList.toggle("on", state.tab==="track");
   el("panelOrder").classList.toggle("on", state.tab==="order");
+  el("panelScan").classList.toggle("on", state.tab==="scan");
   el("tabTrackB").textContent=state.shipments.filter(s=>s.status==="out").length;
 }
 function kpiData(){
@@ -1046,6 +1378,19 @@ function renderTrackResult(){
 }
 
 /* failure-reason modal */
+function openFailBulk(n, done){
+  const opts=FAIL_REASONS.map(r=>`<option>${r}</option>`).join("");
+  showModal(`Mark ${n} shipment(s) not delivered`, `
+    <label class="fld">Reason (applies to all ${n})</label>
+    <select id="failReason">${opts}</select>
+    <label class="fld" style="margin-top:10px">Note (optional)</label>
+    <input id="failNote" placeholder="e.g. area closed today" dir="auto">`,
+    "Mark not delivered", ()=>{
+      const reason=document.getElementById("failReason").value;
+      closeModal();
+      done(reason);
+    });
+}
 function openFail(id){
   const opts=FAIL_REASONS.map(r=>`<option>${r}</option>`).join("");
   showModal("Mark delivery failed", `
@@ -1195,34 +1540,58 @@ function isPickupSheet(rows){
   return hasSeller || hasPickup;
 }
 function ingestPickups(rows){
-  const out=[]; let low=0;
+  // A marketplace shipments export has ONE ROW PER PARCEL, but a van visits a seller
+  // ONCE. So we group every row by its seller and turn each seller into a single
+  // pickup stop carrying the sum of their parcels.
+  //
+  // The export does NOT contain seller addresses (Destination* is the CUSTOMER), so a
+  // seller's location comes from the Seller Book the user fills in once. Sellers with
+  // no known location are still imported, flagged, and parked at the depot until placed.
   const get=(r,...names)=>{ for(const n of names){ for(const k in r){ if(k.includes(n) && String(r[k]).trim()!=="") return r[k]; } } return ""; };
+  const groups=new Map();
+  let skippedOwnStock=0;
+
   rows.forEach(raw=>{
     const r=lowerKeys(raw);
-    const gov = get(r,"governorate","محافظة");
-    const area= get(r,"area","zone","district","منطقة");
-    const [zone,blat,blng]=awbArea(gov,area);
-    if(/bartas/i.test(zone)) low++;
-    const name = cleanText(get(r,"sold by","seller","vendor","merchant","store","supplier","بائع","name"));
-    const id   = String(get(r,"pickup #","pickup no","request","pickup id","seller id","id")||"").trim();
-    const [jla,jln]=seededJitter(String(id||name||Math.random()));
-    const phone=normPhone(get(r,"phone","mobile","تليفون"));
-    const street=cleanText(get(r,"address","street","location","عنوان"));
-    const pkgs = parseInt(get(r,"packages","pkg","qty","pieces","items","total qty","عدد"))||1;
+    const seller=cleanText(get(r,"marketplace seller","sold by","seller name","seller","vendor","merchant","store","supplier","بائع"));
+    if(!seller){ skippedOwnStock++; return; }          // no seller = own stock, nothing to collect
+    const qty = parseInt(get(r,"total qty","packages","pkg","qty","pieces","items"))||1;
+    const kg  = parseFloat(get(r,"total weight","weight","kg"))||0;
+    const g = groups.get(seller) || {seller, parcels:0, packages:0, weightKg:0, ids:[]};
+    g.parcels  += 1;
+    g.packages += qty;
+    g.weightKg += kg;
+    const sh=String(get(r,"shipment #","shipment no","awb")||"").trim();
+    if(sh) g.ids.push(sh);
+    groups.set(seller,g);
+  });
+
+  const out=[]; let unplaced=0;
+  groups.forEach(g=>{
+    const known = state.sellerBook[g.seller];         // location we already learned
+    const [jla,jln]=seededJitter(g.seller);
+    const lat = known ? known.lat : state.depot.lat;
+    const lng = known ? known.lng : state.depot.lng;
+    if(!known) unplaced++;
     out.push(newShipment({
-      id: id||undefined,
+      id: "PU-"+g.seller.slice(0,18),
       kind:"pickup",
-      customer: name||"Seller",
-      zone,
-      address: street + (phone?(" ☎"+phone):""),
-      lat:+(blat+jla).toFixed(5), lng:+(blng+jln).toFixed(5),
-      weightKg: parseFloat(get(r,"weight","kg"))||0,
-      packages: pkgs,
-      cod:0,                       // no money at the seller
+      customer: g.seller,
+      soldBy: g.seller,
+      zone: known ? known.zone : "",
+      address: known ? (known.address||"") : "",
+      lat: known ? +(lat+jla).toFixed(5) : lat,
+      lng: known ? +(lng+jln).toFixed(5) : lng,
+      weightKg: +g.weightKg.toFixed(1),
+      packages: g.packages,
+      parcels: g.parcels,
+      needsLocation: !known,
+      cod: 0,                                          // nothing collected at a seller
       urgent:false
     }));
   });
-  return {rows:out, pickup:true, lowConf:low};
+  out.sort((a,b)=>b.packages-a.packages);              // biggest sellers first
+  return {rows:out, pickup:true, sellers:groups.size, skippedOwnStock, unplaced};
 }
 function ingestRows(rows){
   // The user picked the slot (deliveries vs seller pickups), so we OBEY that instead of
@@ -1278,9 +1647,16 @@ function importFile(file){
       if(!res.rows.length){ el("impMsg").innerHTML=`<span style="color:var(--danger)">No rows could be read.</span>`; return; }
       state.shipments=state.shipments.concat(res.rows); state.planned=false; render();
       const codTot=res.rows.reduce((a,s)=>a+(s.cod||0),0);
-      let m = res.pickup
-        ? `Imported ${res.rows.length} seller pickups (first mile). ${res.rows.reduce((a,s)=>a+(s.packages||0),0)} packages to collect.`
-        : `Imported ${res.rows.length} shipments`+(res.awb?" (MB Logistics AWB)":"")+`. COD ${fmtEGP(codTot)} EGP.`;
+      let m;
+      if(res.pickup){
+        const pk=res.rows.reduce((a,s)=>a+(s.packages||0),0);
+        const parcels=res.rows.reduce((a,s)=>a+(s.parcels||0),0);
+        m=`${res.sellers} sellers · ${parcels} parcels · ${pk} packages to collect.`;
+        if(res.skippedOwnStock) m+=` ${res.skippedOwnStock} rows had no seller (own stock) — skipped.`;
+        if(res.unplaced) m+=` ⚠ ${res.unplaced} seller(s) need a pickup area before they can be routed.`;
+      } else {
+        m=`Imported ${res.rows.length} shipments`+(res.awb?" (MB Logistics AWB)":"")+`. COD ${fmtEGP(codTot)} EGP.`;
+      }
       if((res.awb||res.pickup)&&res.lowConf) m+=` ${res.lowConf} in low-confidence area(s).`;
       if(!res.awb&&res.filledZone) m+=` ${res.filledZone} placed by zone.`;
       if(!res.awb&&res.missing) m+=` ${res.missing} had no zone/coords (placed at start point 1).`;
@@ -1428,6 +1804,26 @@ function fillZoneSelect(){el("sZone").innerHTML=Object.keys(ZONES).map(z=>`<opti
 el("tabPlan").onclick=()=>{state.tab="plan";render();};
 el("tabTrack").onclick=()=>{state.tab="track";render();};
 el("tabOrder").onclick=()=>{state.tab="order";render();};
+el("tabScan").onclick=()=>{state.tab="scan";render();setTimeout(focusScan,30);};
+
+// the scanner types the code then hits Enter — that's all we need to listen for
+el("scanIn").addEventListener("keydown", e=>{
+  if(e.key==="Enter"){
+    e.preventDefault();
+    const v=el("scanIn").value;
+    el("scanIn").value="";
+    onScan(v);
+  }
+});
+// keep the box focused: warehouse staff shouldn't have to click before every scan
+el("panelScan").addEventListener("click", e=>{
+  if(!e.target.closest("button,select,input,a")) focusScan();
+});
+el("scanIn").addEventListener("blur", ()=>{ setTimeout(()=>{ if(state.tab==="scan") focusScan(); }, 120); });
+
+el("btnScanApply").onclick=applyScan;
+el("btnScanUndo").onclick=()=>{ state.scan.items.shift(); renderScan(); focusScan(); };
+el("btnScanClear").onclick=()=>{ state.scan.items=[]; renderScan(); focusScan(); };
 el("btnBuild").onclick=buildRoutes;
 el("btnAddVeh").onclick=addVehicle;
 el("btnAddStop").onclick=addStop;
@@ -1463,6 +1859,9 @@ function openImport(mode){
 }
 el("btnImport").onclick   = ()=>openImport("delivery");
 el("btnImportPk").onclick = ()=>openImport("pickup");
+el("btnSellerExport").onclick = exportSellerBook;
+el("btnSellerImport").onclick = ()=>el("sellerFile").click();
+el("sellerFile").onchange = e=>{ const f=e.target.files&&e.target.files[0]; if(f) importSellerBook(f); e.target.value=""; };
 el("impCancel").onclick=()=>el("impBack").classList.remove("on");
 el("impBack").onclick=e=>{if(e.target===el("impBack"))el("impBack").classList.remove("on");};
 el("impPick").onclick=()=>el("impFile").click();
@@ -1474,7 +1873,9 @@ el("impDo").onclick=()=>{const res=parseCSV(el("impText").value);
   let m=`Imported ${res.rows.length} stops.`; if(res.filledZone)m+=` ${res.filledZone} placed by zone.`; if(res.missing)m+=` ${res.missing} had no zone/coords (placed at start point 1).`;
   render();toast(m);};
 
-fillZoneSelect(); render();
+loadSellerBook(); fillZoneSelect();
+el("scanStatus").innerHTML=STATUSES.map(k=>`<option value="${k}" ${k==="out"?"selected":""}>${STATUS_LABEL[k]}</option>`).join("");
+render();
 </script>
 
 
